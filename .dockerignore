@@ -11,5 +11,4 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 data/*.json
-tests/
 doc/

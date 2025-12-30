@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Open Positions
+model Portfolio {
+  id                 Int      @id @default(autoincrement())
+  ticker             String
+  companyName        String?
+  sector             String?
+  industry           String?
+  quantity           Int
+  entryPrice         Decimal  @db.Decimal(10, 2)
+  currentPrice       Decimal? @db.Decimal(10, 2)
+  entryDate          DateTime @default(now())
+  stopLoss           Decimal? @db.Decimal(10, 2)
+  takeProfit         Decimal? @db.Decimal(10, 2)
+  status             String   @default("OPEN") // OPEN, CLOSED
+  correlationNotes   String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([ticker])
+  @@index([status])
+}
+
+// Closed Trades with Tax Fields
+model TradeHistory {
+  id                 Int      @id @default(autoincrement())
+  orderId            String?
+  ticker             String
+  action             String   // BUY, SELL
+  quantity           Int
+  entryPrice         Decimal  @db.Decimal(10, 2)
+  exitPrice          Decimal? @db.Decimal(10, 2)
+  entryDate          DateTime
+  exitDate           DateTime?
+  realizedPnL        Decimal? @db.Decimal(10, 2)
+  realizedPnLPct     Decimal? @db.Decimal(10, 4)
+  
+  // Tax-specific fields
+  costBasis          Decimal? @db.Decimal(10, 2)
+  proceeds           Decimal? @db.Decimal(10, 2)
+  commission         Decimal? @db.Decimal(10, 2)
+  taxLotMethod       String?  // FIFO, LIFO, SpecificID
+  washSale           Boolean  @default(false)
+  shortTerm          Boolean? // true if held <365 days
+  taxYear            Int?
+  
+  createdAt          DateTime @default(now())
+
+  @@index([ticker])
+  @@index([entryDate])
+  @@index([taxYear])
+}
+
+// AI Decision Audit Trail
+model AIDecision {
+  id                 Int      @id @default(autoincrement())
+  ticker             String
+  timestamp          DateTime @default(now())
+  
+  // Input Data (stored as JSON)
+  marketContext      Json?    // VIX, Fear & Greed, etc.
+  assetAnalysis      Json?    // Technical indicators, fundamentals
+  portfolioContext   Json?    // Current positions, cash, exposure
+  
+  // AI Response
+  aiModel            String   // gpt-4-turbo
+  decision           String   // BUY, SELL, HOLD
+  confidence         Int      // 0-100
+  quantity           Int?
+  suggestedPrice     Decimal? @db.Decimal(10, 2)
+  stopLoss           Decimal? @db.Decimal(10, 2)
+  takeProfit         Decimal? @db.Decimal(10, 2)
+  
+  // Reasoning
+  primaryFactors     Json?    // Array of key factors
+  supportingFactors  Json?
+  riskFactors        Json?
+  reasoning          String?  @db.Text
+  
+  // Risk Assessment
+  riskLevel          String?  // LOW, MEDIUM, HIGH
+  maxLossPct         Decimal? @db.Decimal(5, 2)
+  rewardRiskRatio    Decimal? @db.Decimal(5, 2)
+  
+  // Execution Tracking
+  executed           Boolean  @default(false)
+  executedAt         DateTime?
+  actualOutcome      String?  // SUCCESS, FAILED, PARTIAL
+  performancePnl     Decimal? @db.Decimal(10, 2)
+  
+  // API Cost Tracking
+  promptTokens       Int?
+  completionTokens   Int?
+  totalTokens        Int?
+  apiCostUsd         Decimal? @db.Decimal(10, 6)
+  
+  createdAt          DateTime @default(now())
+
+  @@index([ticker])
+  @@index([timestamp])
+  @@index([decision])
+  @@index([executed])
+}
+
+// IRS-Ready Tax Transaction Log
+model TaxTransaction {
+  id                 Int      @id @default(autoincrement())
+  transactionDate    DateTime
+  taxYear            Int
+  ticker             String
+  description        String?  @db.Text
+  
+  // Transaction Details
+  transactionType    String   // BUY, SELL, DIVIDEND, SPLIT
+  quantity           Decimal  @db.Decimal(12, 4) // Support fractional shares
+  pricePerShare      Decimal  @db.Decimal(10, 2)
+  totalAmount        Decimal  @db.Decimal(12, 2)
+  commission         Decimal? @db.Decimal(10, 2)
+  
+  // Capital Gains Calculation
+  costBasis          Decimal? @db.Decimal(12, 2)
+  proceeds           Decimal? @db.Decimal(12, 2)
+  capitalGain        Decimal? @db.Decimal(12, 2) // proceeds - cost
+  gainType           String?  // SHORT_TERM, LONG_TERM
+  
+  // Wash Sale Detection
+  washSale           Boolean  @default(false)
+  relatedTradeId     Int?
+  washSaleAmount     Decimal? @db.Decimal(10, 2)
+  
+  // Tax Forms
+  form8949Required   Boolean  @default(false)
+  form1099BReceived  Boolean  @default(false)
+  
+  // Audit Trail
+  orderId            String?
+  confirmationNum    String?
+  notes              String?  @db.Text
+  
+  createdAt          DateTime @default(now())
+
+  @@index([taxYear])
+  @@index([ticker])
+  @@index([transactionType])
+  @@index([transactionDate])
+}
+
+// Cache for Analysis Results
+model AnalysisCache {
+  id                 Int      @id @default(autoincrement())
+  ticker             String
+  cacheKey           String   @unique
+  cacheType          String   // SENTIMENT, TECHNICAL, FUNDAMENTAL, NEWS
+  data               Json
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+
+  @@index([ticker])
+  @@index([cacheType])
+  @@index([expiresAt])
+}
+
+// Daily Performance Metrics
+model PerformanceMetrics {
+  id                 Int      @id @default(autoincrement())
+  date               DateTime @unique
+  totalValue         Decimal  @db.Decimal(12, 2)
+  cashBalance        Decimal  @db.Decimal(12, 2)
+  positionsValue     Decimal  @db.Decimal(12, 2)
+  dailyPnL           Decimal  @db.Decimal(12, 2)
+  dailyPnLPct        Decimal  @db.Decimal(10, 4)
+  totalReturn        Decimal  @db.Decimal(10, 4)
+  sharpeRatio        Decimal? @db.Decimal(10, 4)
+  maxDrawdown        Decimal? @db.Decimal(10, 4)
+  winRate            Decimal? @db.Decimal(5, 2)
+  tradesCount        Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  @@index([date])
+}

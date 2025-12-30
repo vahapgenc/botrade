@@ -1,11 +1,13 @@
 # Use Node.js LTS
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Install required system dependencies
 RUN apk add --no-cache \
     python3 \
     make \
-    g++
+    g++ \
+    openssl \
+    openssl-dev
 
 # Set working directory
 WORKDIR /app
@@ -13,8 +15,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (include dev dependencies for Prisma)
+RUN npm ci
+
+# Copy prisma schema first
+COPY prisma ./prisma
+
+# Generate Prisma client
+RUN npx prisma generate
 
 # Copy application code
 COPY . .

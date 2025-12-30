@@ -22,7 +22,12 @@
     "type": "git",
     "url": "git+https://github.com/vahapgenc/botrade.git"
   },
-  "keywords": ["trading", "ai", "algorithmic", "docker"],
+  "keywords": [
+    "trading",
+    "ai",
+    "algorithmic",
+    "docker"
+  ],
   "author": "",
   "license": "MIT",
   "type": "commonjs",
@@ -31,12 +36,14 @@
   },
   "homepage": "https://github.com/vahapgenc/botrade#readme",
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "prisma": "^5.22.0"
   }
 }
