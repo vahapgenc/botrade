@@ -17,7 +17,23 @@ const consoleFormat = winston.format.combine(
     winston.format.printf(({ timestamp, level, message, ...meta }) => {
         let msg = `${timestamp} [${level}] ${message}`;
         if (Object.keys(meta).length > 0) {
-            msg += ` ${JSON.stringify(meta)}`;
+            try {
+                // Filter out circular references and non-serializable objects
+                const filteredMeta = {};
+                for (const [key, value] of Object.entries(meta)) {
+                    if (value && typeof value === 'object' && 
+                        (value.constructor.name === 'ClientRequest' || 
+                         value.constructor.name === 'IncomingMessage' ||
+                         value.constructor.name === 'Socket')) {
+                        filteredMeta[key] = '[Circular]';
+                    } else {
+                        filteredMeta[key] = value;
+                    }
+                }
+                msg += ` ${JSON.stringify(filteredMeta)}`;
+            } catch (err) {
+                msg += ` [Unable to serialize metadata]`;
+            }
         }
         return msg;
     })
