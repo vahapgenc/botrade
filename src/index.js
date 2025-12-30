@@ -1,15 +1,13 @@
 const config = require('../config/settings');
 const logger = require('./utils/logger');
-const { testConnection } = require('./database/prisma');
-const http = require('http');
+const { testConnection, disconnect } = require('./database/prisma');
+const { startServer } = require('./api/server');
 
 async function initialize() {
     logger.info('🚀 Trading Bot Initializing...');
     logger.info(`Environment: ${config.env}`);
     logger.info(`Log Level: ${process.env.LOG_LEVEL || 'info'}`);
-    logger.info(`Port: ${config.port}`);
-    logger.info(`IBKR Host: ${config.ibkr.host}:${config.ibkr.port}`);
-
+    
     // Validate critical environment variables
     const requiredVars = ['FMP_API_KEY', 'OPENAI_API_KEY'];
     const missing = requiredVars.filter(varName => !process.env[varName]);
@@ -25,39 +23,24 @@ async function initialize() {
         logger.error('Database connection failed');
         process.exit(1);
     }
-
+    
+    // Start Express server
+    startServer();
+    
     logger.info('✅ All systems initialized');
-    logger.info('📝 Next: Proceed to STEP 4 (Express Server)');
-
-    // Create a simple health check server
-    const server = http.createServer((req, res) => {
-        if (req.url === '/health') {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-                status: 'healthy', 
-                database: 'connected',
-                timestamp: new Date().toISOString() 
-            }));
-        } else {
-            res.writeHead(404);
-            res.end('Not Found');
-        }
-    });
-
-    server.listen(config.port, '0.0.0.0', () => {
-        logger.info(`Health check server listening on port ${config.port}`);
-        logger.info(`Health endpoint: http://localhost:${config.port}/health`);
-    });
+    logger.info('📝 Next: Proceed to STEP 5 (Sentiment Engine)');
 }
 
 // Handle process termination
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     logger.info('Received SIGINT, shutting down gracefully...');
+    await disconnect();
     process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
     logger.info('Received SIGTERM, shutting down gracefully...');
+    await disconnect();
     process.exit(0);
 });
 

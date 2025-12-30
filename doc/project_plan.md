@@ -5534,6 +5534,13 @@ initialize();
 - **Testing**: End-to-end workflow
 
 ---
+🔴 Step 7: Technical Indicators
+🔴 Step 8: Market Data Fetcher
+🔴 Step 9: Fundamental Analysis
+🔴 Step 10: News Analysis
+🔴 Step 11: AI Decision Engine
+🔴 Step 12: IBKR Integration
+🔴 Step 13: Dashboard UI
 
 ## ✅ Next Steps
 
