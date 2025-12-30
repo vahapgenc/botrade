@@ -8,17 +8,17 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: botrade
-      POSTGRES_USER: botrade_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_secure_password_here}
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
     ports:
-      - "15432:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
     networks:
       - botrade-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U botrade_user -d botrade"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d botrade"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -55,7 +55,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: ${NODE_ENV:-production}
-      DATABASE_URL: postgresql://botrade_user:${DB_PASSWORD:-your_secure_password_here}@postgres:5432/botrade?schema=public
+      DATABASE_URL: postgresql://admin:${DB_PASSWORD:-admin123}@postgres:5432/botrade?schema=public
       REDIS_URL: redis://redis:6379
       
       # API Keys
@@ -94,7 +94,7 @@ services:
     depends_on:
       - postgres
     environment:
-      DATABASE_URL: postgresql://botrade_user:${DB_PASSWORD:-your_secure_password_here}@postgres:5432/botrade?schema=public
+      DATABASE_URL: postgresql://admin:${DB_PASSWORD:-admin123}@postgres:5432/botrade?schema=public
     ports:
       - "5555:5555"
     volumes:
