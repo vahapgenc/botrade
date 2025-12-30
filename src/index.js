@@ -1,6 +1,7 @@
 const config = require('../config/settings');
 const logger = require('./utils/logger');
-const { testConnection, disconnect } = require('./database/prisma');
+const { testConnection, disconnect: disconnectDb } = require('./database/prisma');
+const { initCache, disconnect: disconnectCache } = require('./services/cache/cacheManager');
 const { startServer } = require('./api/server');
 
 async function initialize() {
@@ -24,23 +25,28 @@ async function initialize() {
         process.exit(1);
     }
     
+    // Initialize Redis cache
+    await initCache();
+    
     // Start Express server
     startServer();
     
     logger.info('✅ All systems initialized');
-    logger.info('📝 Next: Proceed to STEP 5 (Sentiment Engine)');
+    logger.info('📝 Next: Proceed to STEP 7 (Technical Indicators)');
 }
 
 // Handle process termination
 process.on('SIGINT', async () => {
     logger.info('Received SIGINT, shutting down gracefully...');
-    await disconnect();
+    await disconnectDb();
+    await disconnectCache();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
     logger.info('Received SIGTERM, shutting down gracefully...');
-    await disconnect();
+    await disconnectDb();
+    await disconnectCache();
     process.exit(0);
 });
 

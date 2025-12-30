@@ -1,10 +1,23 @@
 const { fetchVIX } = require('./vixFetcher');
 const { fetchFearGreed } = require('./fearGreedFetcher');
+const { get, set } = require('../cache/cacheManager');
+const config = require('../../../config/settings');
 const logger = require('../../utils/logger');
 
-async function getMarketSentiment() {
+async function getMarketSentiment(forceRefresh = false) {
     try {
-        logger.info('Fetching market sentiment...');
+        const cacheKey = 'market_sentiment';
+        
+        // Check cache first (unless force refresh)
+        if (!forceRefresh) {
+            const cached = await get(cacheKey);
+            if (cached) {
+                logger.info('Returning cached market sentiment');
+                return cached;
+            }
+        }
+        
+        logger.info('Fetching fresh market sentiment...');
         
         // Fetch all indicators in parallel
         const [vix, fearGreed] = await Promise.all([
@@ -19,8 +32,12 @@ async function getMarketSentiment() {
             timestamp: new Date(),
             vix,
             fearGreed,
-            composite: compositeScore
+            composite: compositeScore,
+            cached: false
         };
+        
+        // Cache the result
+        await set(cacheKey, result, config.cache.sentimentTTL);
         
         logger.info(`Market sentiment complete. Composite: ${compositeScore.score} (${compositeScore.interpretation})`);
         return result;
