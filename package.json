@@ -6,13 +6,23 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node tests/test.js"
+    "test": "node tests/test.js",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f app",
+    "docker:restart": "docker-compose restart app",
+    "docker:prisma": "docker-compose --profile tools up prisma-studio",
+    "prisma:migrate": "docker-compose exec app npx prisma migrate dev",
+    "prisma:generate": "docker-compose exec app npx prisma generate",
+    "prisma:studio": "docker-compose --profile tools up prisma-studio",
+    "logs:tail": "docker-compose exec app tail -f logs/combined-*.log"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vahapgenc/botrade.git"
   },
-  "keywords": ["trading", "ai", "algorithmic"],
+  "keywords": ["trading", "ai", "algorithmic", "docker"],
   "author": "",
   "license": "MIT",
   "type": "commonjs",

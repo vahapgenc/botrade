@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: botrade-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: botrade
+      POSTGRES_USER: botrade_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_secure_password_here}
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - botrade-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U botrade_user -d botrade"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: botrade-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - botrade-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # Trading Bot Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: botrade-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://botrade_user:${DB_PASSWORD:-your_secure_password_here}@postgres:5432/botrade?schema=public
+      REDIS_URL: redis://redis:6379
+      
+      # API Keys
+      FMP_API_KEY: ${FMP_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      POLYGON_API_KEY: ${POLYGON_API_KEY}
+      NEWSAPI_KEY: ${NEWSAPI_KEY}
+      
+      # IBKR (connects to host machine)
+      IB_HOST: host.docker.internal
+      IB_PORT: ${IB_PORT:-7497}
+      IB_CLIENT_ID: ${IB_CLIENT_ID:-1}
+      
+      # Trading Settings
+      MIN_CONFIDENCE: ${MIN_CONFIDENCE:-70}
+      MAX_POSITION_PCT: ${MAX_POSITION_PCT:-10}
+      MAX_DAILY_TRADES: ${MAX_DAILY_TRADES:-10}
+      
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - botrade-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Prisma Studio (optional - for database management)
+  prisma-studio:
+    image: node:18-alpine
+    container_name: botrade-prisma
+    working_dir: /app
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://botrade_user:${DB_PASSWORD:-your_secure_password_here}@postgres:5432/botrade?schema=public
+    ports:
+      - "5555:5555"
+    volumes:
+      - .:/app
+    networks:
+      - botrade-network
+    command: sh -c "npm install -g prisma && npx prisma studio --port 5555 --browser none"
+    profiles:
+      - tools
+
+networks:
+  botrade-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
