@@ -513,6 +513,143 @@ docker-compose start redis
 
 ---
 
+## 🔍 Redis CLI Commands Reference
+
+### Access Redis CLI
+```bash
+# Interactive mode
+docker-compose exec redis redis-cli
+
+# One-liner commands from PowerShell/Bash
+docker-compose exec redis redis-cli KEYS '*'
+docker-compose exec redis redis-cli GET market_sentiment
+docker-compose exec redis redis-cli TTL market_sentiment
+```
+
+### Common Redis Commands
+
+#### Viewing Data
+```bash
+# List all keys
+KEYS *
+
+# Get value of a specific key
+GET key_name
+
+# Get value with formatted JSON (in PowerShell)
+docker-compose exec redis redis-cli GET market_sentiment
+
+# Check data type of a key
+TYPE key_name
+
+# Get all information about a key
+DUMP key_name
+```
+
+#### Time To Live (TTL)
+```bash
+# Check remaining TTL in seconds
+TTL key_name
+# Returns: positive number (seconds remaining)
+#         -1 (key exists but no expiry)
+#         -2 (key does not exist)
+
+# Check TTL in milliseconds
+PTTL key_name
+
+# Set expiry on existing key
+EXPIRE key_name 3600
+```
+
+#### Cache Management
+```bash
+# Delete a specific key
+DEL key_name
+
+# Delete multiple keys
+DEL key1 key2 key3
+
+# Clear all keys in current database
+FLUSHDB
+
+# Clear all keys in all databases
+FLUSHALL
+```
+
+#### Database Info
+```bash
+# Number of keys in database
+DBSIZE
+
+# Redis server information
+INFO
+
+# Memory usage statistics
+INFO memory
+
+# Cache hit/miss statistics
+INFO stats
+
+# Get memory usage of specific key
+MEMORY USAGE key_name
+```
+
+#### Monitoring
+```bash
+# Monitor all commands in real-time
+MONITOR
+
+# Get slow queries log
+SLOWLOG GET 10
+
+# Ping Redis (test connection)
+PING
+# Returns: PONG
+```
+
+### Useful PowerShell One-Liners
+```powershell
+# View all cached keys
+docker-compose exec redis redis-cli KEYS '*'
+
+# Get sentiment cache with formatted output
+docker-compose exec redis redis-cli GET market_sentiment | ConvertFrom-Json
+
+# Check TTL and display remaining time
+$ttl = docker-compose exec redis redis-cli TTL market_sentiment
+Write-Host "Cache expires in $ttl seconds ($([math]::Round($ttl/60, 2)) minutes)"
+
+# Get database size
+docker-compose exec redis redis-cli DBSIZE
+
+# Clear all cache (use with caution!)
+docker-compose exec redis redis-cli FLUSHDB
+
+# Monitor Redis in real-time (Ctrl+C to stop)
+docker-compose exec redis redis-cli MONITOR
+```
+
+### Debug Cache Issues
+```bash
+# Check if key exists
+EXISTS key_name
+# Returns: 1 (exists) or 0 (doesn't exist)
+
+# Get key's last access time
+OBJECT IDLETIME key_name
+
+# Check memory used by key
+MEMORY USAGE market_sentiment
+
+# View all keys matching pattern
+KEYS market_*
+
+# Scan keys (better for production than KEYS)
+SCAN 0 MATCH market_* COUNT 100
+```
+
+---
+
 ## 🚨 Blocking Issues & Solutions
 
 ### Issue 1: "Redis connection refused"
