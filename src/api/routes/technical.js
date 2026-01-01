@@ -1,24 +1,44 @@
 const express = require('express');
 const router = express.Router();
 const { analyzeTechnicals } = require('../../services/technical/technicalAnalyzer');
+const { getHistoricalData, extractPriceArrays } = require('../../services/market/dataFetcher');
 const logger = require('../../utils/logger');
 
 router.get('/:ticker', async (req, res) => {
     try {
         const { ticker } = req.params;
-        logger.info(`Technical analysis request for ${ticker}`);
+        const { timeframe = 'daily', limit = 250 } = req.query;
         
-        // TODO: Fetch price data from market data service (Step 8)
-        // For now, return placeholder
+        logger.info(`Technical analysis request for ${ticker} (${timeframe})`);
+        
+        // Fetch market data
+        const marketData = await getHistoricalData(ticker, timeframe, parseInt(limit));
+        
+        // Extract price arrays
+        const priceData = extractPriceArrays(marketData);
+        
+        // Perform technical analysis
+        const analysis = await analyzeTechnicals(priceData);
+        
         res.json({
             ticker,
-            message: 'Price data fetcher will be implemented in Step 8',
-            status: 'pending'
+            timeframe,
+            dataPoints: marketData.dataPoints,
+            lastUpdate: marketData.fetchedAt,
+            analysis
         });
         
     } catch (error) {
         logger.error('Technical analysis error:', error);
-        res.status(500).json({ error: error.message });
+        
+        if (error.message.includes('API')) {
+            res.status(503).json({ 
+                error: 'Market data service unavailable',
+                details: error.message 
+            });
+        } else {
+            res.status(500).json({ error: error.message });
+        }
     }
 });
 
