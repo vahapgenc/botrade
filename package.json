@@ -38,10 +38,13 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "axios": "^1.13.2",
+    "big.js": "^7.0.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "redis": "^5.10.0",
+    "technicalindicators": "^3.1.0",
+    "trading-signals": "^7.4.2",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0"
   },

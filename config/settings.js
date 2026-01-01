@@ -11,7 +11,7 @@ module.exports = {
     
     // IBKR
     ibkr: {
-        host: process.env.IB_HOST || 'host.docker.internal',
+        host: process.env.IB_HOST || 'localhost',
         port: parseInt(process.env.IB_PORT) || 7497,
         clientId: parseInt(process.env.IB_CLIENT_ID) || 1
     },
@@ -23,7 +23,7 @@ module.exports = {
     
     // Redis
     redis: {
-        url: process.env.REDIS_URL || 'redis://redis:6379'
+        url: process.env.REDIS_URL || 'redis://localhost:6379'
     },
     
     // Portfolio Settings

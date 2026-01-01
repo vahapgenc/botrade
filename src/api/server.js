@@ -37,6 +37,7 @@ app.use('/api/sentiment', require('./routes/sentiment'));
 app.use('/api/analysis', require('./routes/analysis'));
 app.use('/api/trading', require('./routes/trading'));
 app.use('/api/portfolio', require('./routes/portfolio'));
+app.use('/api/technical', require('./routes/technical'));
 
 // Static files for dashboard (optional)
 app.use(express.static(path.join(__dirname, '../web/public')));
