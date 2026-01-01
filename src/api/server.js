@@ -40,6 +40,7 @@ app.use('/api/portfolio', require('./routes/portfolio'));
 app.use('/api/technical', require('./routes/technical'));
 app.use('/api/market', require('./routes/market'));
 app.use('/api/fundamental', require('./routes/fundamental'));
+app.use('/api/news', require('./routes/news'));
 
 // Static files for dashboard (optional)
 app.use(express.static(path.join(__dirname, '../web/public')));
