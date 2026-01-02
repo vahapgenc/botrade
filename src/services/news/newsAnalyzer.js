@@ -176,7 +176,7 @@ async function fetchFromAlphaVantage(ticker, options = {}) {
     
     const response = await axios.get(ALPHA_VANTAGE_BASE_URL, {
         params,
-        timeout: 15000
+        timeout: 5000
     });
     
     if (response.data.Note) {
@@ -274,7 +274,7 @@ async function getNewsByTopics(topics, options = {}) {
         
         const response = await axios.get(ALPHA_VANTAGE_BASE_URL, {
             params,
-            timeout: 15000
+            timeout: 5000
         });
         
         if (response.data.Note) {

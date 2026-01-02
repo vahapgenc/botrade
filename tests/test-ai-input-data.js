@@ -46,7 +46,12 @@ async function showAIInputData(ticker = 'AAPL') {
         console.log('📊 2. TECHNICAL INDICATORS (RSI, MACD, Bollinger Bands, etc.)');
         console.log('─────────────────────────────────────────────────────────────');
         try {
-            const technical = await analyzeTechnicals(ticker);
+            // Get market data first
+            const marketData = await getHistoricalData(ticker, 250);
+            const { extractPriceArrays } = require('../src/services/market/dataFetcher');
+            const priceData = extractPriceArrays(marketData);
+            
+            const technical = await analyzeTechnicals(priceData);
             
             if (technical.error) {
                 console.log(`⚠️  ${technical.error}`);

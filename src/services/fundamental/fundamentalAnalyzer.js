@@ -2,8 +2,100 @@ const axios = require('axios');
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
 
+// Multiple data sources for fallback strategy
+const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
+const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 const FMP_API_KEY = process.env.FMP_API_KEY;
+
+/**
+ * Fetch from Alpha Vantage OVERVIEW (Primary)
+ */
+async function fetchFromAlphaVantage(ticker) {
+    const params = {
+        function: 'OVERVIEW',
+        symbol: ticker,
+        apikey: ALPHA_VANTAGE_API_KEY
+    };
+    
+    const response = await axios.get(ALPHA_VANTAGE_BASE_URL, { params, timeout: 5000 });
+    
+    if (response.data.Note) {
+        throw new Error('Alpha Vantage rate limit (500/day)');
+    }
+    
+    if (!response.data.Symbol) {
+        throw new Error('No overview data available');
+    }
+    
+    const data = response.data;
+    
+    // Convert to standard format
+    return {
+        profile: {
+            companyName: data.Name,
+            sector: data.Sector,
+            industry: data.Industry,
+            description: data.Description,
+            ceo: 'N/A', // Not in Alpha Vantage
+            website: 'N/A', // Not in Alpha Vantage
+            fullTimeEmployees: parseInt(data.FullTimeEmployees) || 0
+        },
+        quote: {
+            price: parseFloat(data.Price) || 0,
+            marketCap: parseFloat(data.MarketCapitalization) || 0,
+            volume: parseFloat(data.Volume) || 0,
+            avgVolume: parseFloat(data.Volume) || 0, // Use same as volume
+            pe: parseFloat(data.PERatio) || null,
+            eps: parseFloat(data.EPS) || null,
+            beta: parseFloat(data.Beta) || null,
+            dividendYield: parseFloat(data.DividendYield) || null,
+            bookValue: parseFloat(data.BookValue) || null,
+            profitMargin: parseFloat(data.ProfitMargin) || null,
+            returnOnEquity: parseFloat(data.ReturnOnEquityTTM) || null
+        }
+    };
+}
+
+/**
+ * Fetch from FMP (Fallback)
+ */
+async function fetchFromFMP(ticker) {
+    const [profile, quote] = await Promise.all([
+        fetchCompanyProfileFMP(ticker),
+        fetchQuoteFMP(ticker)
+    ]);
+    
+    return { profile, quote };
+}
+
+async function fetchCompanyProfileFMP(ticker) {
+    const url = `${FMP_BASE_URL}/profile/${ticker}`;
+    const response = await axios.get(url, {
+        params: { apikey: FMP_API_KEY },
+        timeout: 10000
+    });
+    
+    if (!response.data || response.data.length === 0) {
+        throw new Error('No profile data');
+    }
+    
+    return response.data[0];
+}
+
+async function fetchQuoteFMP(ticker) {
+    const url = `${FMP_BASE_URL}/quote/${ticker}`;
+    const response = await axios.get(url, {
+        params: { apikey: FMP_API_KEY },
+        timeout: 10000
+    });
+    
+    if (!response.data || response.data.length === 0) {
+        throw new Error('No quote data');
+    }
+    
+    return response.data[0];
+}
 
 async function getFundamentals(ticker) {
     try {
@@ -18,43 +110,88 @@ async function getFundamentals(ticker) {
         
         logger.info(`Fetching fundamental data for ${ticker}...`);
         
-        // Fetch available data with free tier
-        const [profile, quote] = await Promise.all([
-            fetchCompanyProfile(ticker),
-            fetchQuote(ticker)
-        ]);
+        let data = null;
+        let source = null;
+        
+        // Try 1: Alpha Vantage (primary)
+        if (ALPHA_VANTAGE_API_KEY) {
+            try {
+                logger.info(`[1/2] Trying Alpha Vantage for ${ticker}...`);
+                data = await fetchFromAlphaVantage(ticker);
+                if (data && data.profile) {
+                    source = 'Alpha Vantage';
+                    logger.info(`✅ Alpha Vantage returned fundamental data`);
+                }
+            } catch (error) {
+                logger.warn(`⚠️  Alpha Vantage failed: ${error.message}`);
+            }
+        } else {
+            logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
+        }
+        
+        // Try 2: FMP (fallback)
+        if (!data && FMP_API_KEY) {
+            try {
+                logger.info(`[2/2] Trying FMP for ${ticker}...`);
+                data = await fetchFromFMP(ticker);
+                if (data && data.profile) {
+                    source = 'FMP';
+                    logger.info(`✅ FMP returned fundamental data`);
+                }
+            } catch (error) {
+                logger.warn(`⚠️  FMP failed: ${error.message}`);
+            }
+        } else if (!data) {
+            logger.info(`⚠️  FMP not configured (FMP_API_KEY missing)`);
+        }
+        
+        // If all sources failed
+        if (!data || !data.profile) {
+            logger.error(`❌ All fundamental data sources failed for ${ticker}`);
+            return {
+                ticker,
+                error: 'Unable to fetch fundamental data - all sources failed',
+                score: 0,
+                grade: 'F',
+                rating: 'Unable to analyze',
+                factors: {}
+            };
+        }
+        
+        logger.info(`Fundamental data source used: ${source}`);
         
         // Calculate simplified CAN SLIM score based on available data
         const canSlimScore = calculateSimplifiedCANSLIM({
-            profile,
-            quote
+            profile: data.profile,
+            quote: data.quote
         });
         
         const result = {
             ticker,
+            source,
             profile: {
-                name: profile.companyName || ticker,
-                sector: profile.sector || 'N/A',
-                industry: profile.industry || 'N/A',
-                description: profile.description || '',
-                ceo: profile.ceo || 'N/A',
-                website: profile.website || 'N/A',
-                employees: profile.fullTimeEmployees || 0
+                name: data.profile.companyName || ticker,
+                sector: data.profile.sector || 'N/A',
+                industry: data.profile.industry || 'N/A',
+                description: data.profile.description || '',
+                ceo: data.profile.ceo || 'N/A',
+                website: data.profile.website || 'N/A',
+                employees: data.profile.fullTimeEmployees || 0
             },
             quote: {
-                price: quote.price || 0,
-                marketCap: quote.marketCap || 0,
-                volume: quote.volume || 0,
-                avgVolume: quote.avgVolume || 0,
-                pe: quote.pe || null,
-                eps: quote.eps || null,
-                beta: quote.beta || null,
-                dayLow: quote.dayLow || 0,
-                dayHigh: quote.dayHigh || 0,
-                yearLow: quote.yearLow || 0,
-                yearHigh: quote.yearHigh || 0,
-                priceAvg50: quote.priceAvg50 || 0,
-                priceAvg200: quote.priceAvg200 || 0
+                price: data.quote.price || 0,
+                marketCap: data.quote.marketCap || 0,
+                volume: data.quote.volume || 0,
+                avgVolume: data.quote.avgVolume || 0,
+                pe: data.quote.pe || null,
+                eps: data.quote.eps || null,
+                beta: data.quote.beta || null,
+                dayLow: data.quote.dayLow || 0,
+                dayHigh: data.quote.dayHigh || 0,
+                yearLow: data.quote.yearLow || 0,
+                yearHigh: data.quote.yearHigh || 0,
+                priceAvg50: data.quote.priceAvg50 || 0,
+                priceAvg200: data.quote.priceAvg200 || 0
             },
             growth: {
                 earningsGrowthYoY: canSlimScore.metrics.earningsGrowthYoY || 0,
@@ -63,9 +200,9 @@ async function getFundamentals(ticker) {
                 priceChange200Day: canSlimScore.metrics.priceChange200Day || 0
             },
             valuation: {
-                pe: quote.pe || null,
-                marketCap: quote.marketCap || 0,
-                sharesOutstanding: quote.sharesOutstanding || 0
+                pe: data.quote.pe || null,
+                marketCap: data.quote.marketCap || 0,
+                sharesOutstanding: data.quote.sharesOutstanding || 0
             },
             canSlim: canSlimScore,
             fetchedAt: new Date(),
@@ -90,46 +227,6 @@ async function getFundamentals(ticker) {
 // - /key-metrics (403 Forbidden on free tier)
 // - /ratios (403 Forbidden on free tier)
 // This simplified version uses only free tier endpoints
-
-async function fetchCompanyProfile(ticker) {
-    try {
-        const url = `${FMP_BASE_URL}/profile/${ticker}`;
-        const response = await axios.get(url, {
-            params: { apikey: FMP_API_KEY },
-            timeout: 10000
-        });
-        
-        if (!response.data || response.data.length === 0) {
-            throw new Error(`No profile data for ${ticker}`);
-        }
-        
-        return response.data[0];
-        
-    } catch (error) {
-        logger.error(`Profile fetch error: ${error.message}`);
-        throw error;
-    }
-}
-
-async function fetchQuote(ticker) {
-    try {
-        const url = `${FMP_BASE_URL}/quote/${ticker}`;
-        const response = await axios.get(url, {
-            params: { apikey: FMP_API_KEY },
-            timeout: 5000
-        });
-        
-        if (!response.data || response.data.length === 0) {
-            throw new Error(`No quote data for ${ticker}`);
-        }
-        
-        return response.data[0];
-        
-    } catch (error) {
-        logger.error(`Quote fetch error: ${error.message}`);
-        throw error;
-    }
-}
 
 function calculateSimplifiedCANSLIM(data) {
     const { profile, quote } = data;
