@@ -6,6 +6,7 @@ const { getNewsForTicker, getSentimentSignal } = require('../../services/news/ne
 const { getFundamentals } = require('../../services/fundamental/fundamentalAnalyzer');
 const { fetchFearGreed } = require('../../services/sentiment/fearGreedFetcher');
 const { fetchVIX } = require('../../services/sentiment/vixFetcher');
+const { makeAIDecision, getDecisionHistory, getDecisionStats } = require('../../services/ai/aiEngine');
 const logger = require('../../utils/logger');
 
 /**
@@ -257,6 +258,88 @@ router.get('/status', async (req, res) => {
             error: 'Failed to check AI system status',
             message: error.message
         });
+    }
+});
+
+/**
+ * POST /api/ai/decide
+ * Generate AI trading decision (supports both stock and options)
+ */
+router.post('/decide', async (req, res) => {
+    try {
+        const { ticker, companyName, tradingType = 'BOTH' } = req.body;
+        
+        if (!ticker || !companyName) {
+            return res.status(400).json({ 
+                error: 'ticker and companyName are required',
+                example: { 
+                    ticker: 'AAPL', 
+                    companyName: 'Apple Inc.',
+                    tradingType: 'BOTH' // STOCK, OPTIONS, or BOTH
+                }
+            });
+        }
+        
+        if (!['STOCK', 'OPTIONS', 'BOTH'].includes(tradingType)) {
+            return res.status(400).json({ 
+                error: 'tradingType must be STOCK, OPTIONS, or BOTH'
+            });
+        }
+        
+        logger.info(`AI decision request for ${ticker} (${tradingType})`);
+        
+        const decision = await makeAIDecision(ticker.toUpperCase(), companyName, tradingType);
+        
+        res.json(decision);
+        
+    } catch (error) {
+        logger.error('AI decision error:', error);
+        
+        if (error.message && error.message.includes('rate limit')) {
+            res.status(429).json({ 
+                error: 'OpenAI API rate limit exceeded',
+                details: error.message 
+            });
+        } else {
+            res.status(500).json({ error: error.message });
+        }
+    }
+});
+
+/**
+ * GET /api/ai/history
+ * Get AI decision history
+ */
+router.get('/history', async (req, res) => {
+    try {
+        const { ticker, limit = 10 } = req.query;
+        
+        const history = await getDecisionHistory(ticker, parseInt(limit));
+        
+        res.json({
+            count: history.length,
+            decisions: history
+        });
+        
+    } catch (error) {
+        logger.error('Decision history error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/ai/stats
+ * Get AI decision statistics
+ */
+router.get('/stats', async (req, res) => {
+    try {
+        const stats = await getDecisionStats();
+        
+        res.json(stats);
+        
+    } catch (error) {
+        logger.error('Decision stats error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 

@@ -59,36 +59,54 @@ model TradeHistory {
   @@index([taxYear])
 }
 
-// AI Decision Audit Trail
+// AI Decision Audit Trail (Supports both Stock and Options trading)
 model AIDecision {
   id                 Int      @id @default(autoincrement())
   ticker             String
+  companyName        String?
   timestamp          DateTime @default(now())
+  
+  // Trading Type
+  tradingType        String   // STOCK, OPTIONS
   
   // Input Data (stored as JSON)
   marketContext      Json?    // VIX, Fear & Greed, etc.
   assetAnalysis      Json?    // Technical indicators, fundamentals
   portfolioContext   Json?    // Current positions, cash, exposure
+  optionsData        Json?    // Options chain, Greeks (for OPTIONS type)
   
   // AI Response
   aiModel            String   // gpt-4-turbo
   decision           String   // BUY, SELL, HOLD
   confidence         Int      // 0-100
+  timeHorizon        String?  // SHORT_TERM, MEDIUM_TERM, LONG_TERM
+  
+  // Stock Trade Details
   quantity           Int?
   suggestedPrice     Decimal? @db.Decimal(10, 2)
   stopLoss           Decimal? @db.Decimal(10, 2)
   takeProfit         Decimal? @db.Decimal(10, 2)
+  
+  // Options Trade Details (stored as JSON for flexibility)
+  optionsStrategy    String?  // LONG_CALL, LONG_PUT, COVERED_CALL, etc.
+  optionsLegs        Json?    // Array of option legs with strike, expiry, premium
+  maxProfit          Decimal? @db.Decimal(12, 2)
+  maxLoss            Decimal? @db.Decimal(12, 2)
+  breakeven          Decimal? @db.Decimal(10, 2)
+  collateralRequired Decimal? @db.Decimal(12, 2)
   
   // Reasoning
   primaryFactors     Json?    // Array of key factors
   supportingFactors  Json?
   riskFactors        Json?
   reasoning          String?  @db.Text
+  comparisonAnalysis String?  @db.Text // Why stock vs options (or vice versa)
   
   // Risk Assessment
   riskLevel          String?  // LOW, MEDIUM, HIGH
   maxLossPct         Decimal? @db.Decimal(5, 2)
   rewardRiskRatio    Decimal? @db.Decimal(5, 2)
+  probabilitySuccess Decimal? @db.Decimal(5, 2)
   
   // Execution Tracking
   executed           Boolean  @default(false)
@@ -106,6 +124,7 @@ model AIDecision {
 
   @@index([ticker])
   @@index([timestamp])
+  @@index([tradingType])
   @@index([decision])
   @@index([executed])
 }
