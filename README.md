@@ -101,7 +101,7 @@ See [doc/DOCKER_COMMANDS.md](doc/DOCKER_COMMANDS.md) for comprehensive command r
 - **Cache**: Redis 7
 - **ORM**: Prisma
 - **Containerization**: Docker & Docker Compose
-- **Broker**: Interactive Brokers (TWS/Gateway)
+- **Broker**: Interactive Brokers (Client Portal API)
 
 ### System Components
 
