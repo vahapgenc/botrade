@@ -1,25 +1,24 @@
-# STEP 12: IBKR Integration & Order Execution (Client Portal API)
+# STEP 12: IBKR Integration & Order Execution
 
 ## ⚠️ BLOCKING REQUIREMENTS
 **PREREQUISITES (MUST BE COMPLETE):**
 - ✅ STEP 1-11 completed
 - ✅ AI decision engine operational
 - ✅ Interactive Brokers account (paper or live)
-- ✅ Client Portal Gateway downloaded and running
+- ✅ TWS or IB Gateway installed and running
 
 **YOU MUST COMPLETE THIS STEP 100% BEFORE PROCEEDING TO STEP 13**
 
 ---
 
 ## 🎯 Objectives
-1. Set up IBKR Client Portal Gateway
-2. Authenticate via OAuth/SSO
-3. Connect to Client Portal REST API
-4. Implement order placement functions
-5. Implement position tracking
-6. Execute AI-driven trades automatically
-7. Record tax transactions
-8. Implement risk management
+1. Install IBKR Node.js library
+2. Connect to TWS/IB Gateway
+3. Implement order placement functions
+4. Implement position tracking
+5. Execute AI-driven trades automatically
+6. Record tax transactions
+7. Implement risk management
 
 ---
 
@@ -40,113 +39,41 @@
 
 ---
 
-## 🆕 Why Client Portal API?
-
-We use **Client Portal Web API** instead of TWS/IB Gateway Socket API because:
-
-✅ **No Desktop Software** - Lightweight gateway instead of full TWS  
-✅ **REST API** - Standard HTTP requests (easier to implement)  
-✅ **Cross-Platform** - Works on any OS without heavy installation  
-✅ **Modern Auth** - OAuth 2.0 and browser-based login  
-✅ **Better for Cloud** - Can run on servers without GUI
-
----
-
 ## 📝 Implementation Steps
 
-### 12.1 Download Client Portal Gateway
-
-Visit: https://www.interactivebrokers.com/en/index.php?f=5041
-
-Download **Client Portal Gateway** and extract to:
-- Windows: `C:\IBKR\clientportal.gw`
-- Mac/Linux: `~/IBKR/clientportal.gw`
-
-### 12.2 Install Required Packages
+### 12.1 Install IBKR Library
 ```bash
-npm install axios https
+npm install @stoqey/ib
 ```
 
-Already installed: ✅
-
-### 12.3 Add Client Portal Configuration to .env
+### 12.2 Add IBKR Configuration to .env
 Update `.env`:
-```env
-# IBKR Client Portal Configuration
-IBKR_API_URL=https://localhost:5000/v1/api
+```
+# IBKR Configuration
+IBKR_HOST=127.0.0.1
+IBKR_PORT=7497          # 7497 = paper trading, 7496 = live trading
+IBKR_CLIENT_ID=0
 IBKR_ACCOUNT_ID=your_account_id
-
-# OAuth 2.0 (optional for advanced auth)
-IBKR_CLIENT_ID=your_client_id
-IBKR_CLIENT_SECRET=your_client_secret
 
 # Risk Management
 MAX_POSITION_SIZE=10000  # Maximum $ per position
 MAX_PORTFOLIO_RISK=0.02  # 2% max risk per trade
-MIN_CONFIDENCE=70        # Minimum AI confidence to trade
 ```
 
-**Find your Account ID:**
-1. Start Client Portal Gateway
-2. Login at https://localhost:5000
-3. Go to Settings → Account
-4. Copy your account number (e.g., DU12345678 for paper)
-
-### 12.4 Start Client Portal Gateway
-
-**Windows:**
-```powershell
-cd C:\IBKR\clientportal.gw
-.\bin\run.bat root\conf.yaml
-```
-
-**Mac/Linux:**
-```bash
-cd ~/IBKR/clientportal.gw
-./bin/run.sh root/conf.yaml
-```
-
-**Authenticate:**
-1. Open https://localhost:5000 in browser
-2. Accept self-signed certificate
-3. Login with IBKR credentials
-4. Keep gateway running
-
-### 12.5 Create IBKR Client Service
+### 12.3 Create IBKR Client Service
 Create `src/services/ibkr/ibkrClient.js`:
 
 ```javascript
-const axios = require('axios');
-const https = require('https');
+const { IBApi, Contract, Order } = require('@stoqey/ib');
 const logger = require('../../utils/logger');
 
 class IBKRClient {
     constructor() {
-        // Create axios client with SSL handling for self-signed certs
-        this.client = axios.create({
-            baseURL: process.env.IBKR_API_URL,
-            httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-            withCredentials: true,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        // Response interceptor for 401 handling
-        this.client.interceptors.response.use(
-            response => response,
-            async error => {
-                if (error.response?.status === 401) {
-                    logger.warn('Session expired - attempting reauthentication');
-                    await this.connect();
-                    return this.client.request(error.config);
-                }
-                return Promise.reject(error);
-            }
-        );
-        
-        this.authenticated = false;
+        this.ib = null;
+        this.connected = false;
         this.accountId = process.env.IBKR_ACCOUNT_ID;
+        this.positions = new Map();
+        this.orders = new Map();
     }
     
     async connect() {
@@ -770,8 +697,3 @@ curl -X POST http://localhost:3000/api/ibkr/execute \
 ---
 
 **Last Updated:** December 31, 2025
-
-ikbr swagger json 
-https://www.interactivebrokers.com/api/doc.json
-endpoints
-https://interactivebrokers.github.io/cpwebapi/endpoints
