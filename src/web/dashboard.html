@@ -114,6 +114,30 @@
             50% { opacity: 0.5; }
         }
 
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* AI Wizard Styles */
+        .wizard-step {
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        .wizard-step.completed span:first-child {
+            background: #10b981 !important;
+        }
+
+        .ai-step-panel {
+            min-height: 400px;
+        }
+
+        .ai-step-panel.active {
+            display: block !important;
+        }
+
         .content {
             padding: 2rem;
         }
@@ -429,6 +453,12 @@
                     </svg>
                     Orders
                 </a>
+                <a href="#" class="nav-item" data-page="ai-order">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                    AI Order
+                </a>
             </nav>
         </aside>
 
@@ -637,6 +667,310 @@
                     
                     <div id="ordersList" style="background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"></div>
                     <div id="ordersPagination" class="pagination-controls"></div>
+                </div>
+
+                <!-- AI Order View (hidden by default) -->
+                <div id="aiOrderView" class="hidden">
+                    <h1 class="page-title">🤖 AI Order Assistant</h1>
+                    <p class="page-subtitle">Let AI analyze the market and help you make informed trading decisions</p>
+                    
+                    <div style="background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; margin-top: 1.5rem;">
+                        <!-- Wizard Steps -->
+                        <div style="display: flex; background: #f9fafb; padding: 1.5rem 2rem; gap: 2rem; overflow-x: auto;">
+                            <div class="wizard-step active" data-step="1">
+                                <span style="width: 32px; height: 32px; border-radius: 50%; background: #3b82f6; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 0.75rem;">1</span>
+                                <span style="font-weight: 500;">Stock Selection</span>
+                            </div>
+                            <div class="wizard-step" data-step="2">
+                                <span style="width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 0.75rem;">2</span>
+                                <span style="font-weight: 500; color: #9ca3af;">Technical & Fundamental</span>
+                            </div>
+                            <div class="wizard-step" data-step="3">
+                                <span style="width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 0.75rem;">3</span>
+                                <span style="font-weight: 500; color: #9ca3af;">News & Sentiment</span>
+                            </div>
+                            <div class="wizard-step" data-step="4">
+                                <span style="width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 0.75rem;">4</span>
+                                <span style="font-weight: 500; color: #9ca3af;">AI Decision (Optional)</span>
+                            </div>
+                            <div class="wizard-step" data-step="5">
+                                <span style="width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 0.75rem;">5</span>
+                                <span style="font-weight: 500; color: #9ca3af;">Execute Order</span>
+                            </div>
+                        </div>
+
+                        <!-- Wizard Content -->
+                        <div style="padding: 2rem;">
+                            <!-- Step 1: Choose Stock -->
+                            <div class="ai-step-panel active" id="aiStep1">
+                                <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem;">Step 1: Stock Selection</h2>
+                                
+                                <div style="margin-bottom: 1.5rem;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Stock Symbol</label>
+                                    <input type="text" id="aiStockSymbol" placeholder="e.g., AAPL, NVDA, TSLA" style="width: 100%; max-width: 400px; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; text-transform: uppercase;">
+                                </div>
+
+                                <div id="aiStockInfo" style="display: none; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
+                                    <h3 id="aiStockName" style="margin-bottom: 0.75rem;"></h3>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                        <div><span style="color: #6b7280;">Price:</span> <strong id="aiStockPrice">-</strong></div>
+                                        <div><span style="color: #6b7280;">Open:</span> <strong id="aiStockOpen">-</strong></div>
+                                        <div><span style="color: #6b7280;">High:</span> <strong id="aiStockHigh">-</strong></div>
+                                        <div><span style="color: #6b7280;">Low:</span> <strong id="aiStockLow">-</strong></div>
+                                        <div><span style="color: #6b7280;">Volume:</span> <strong id="aiStockVolume">-</strong></div>
+                                    </div>
+                                </div>
+
+                                <div id="aiStep1Loading" style="display: none; text-align: center; padding: 2rem;">
+                                    <div style="border: 3px solid #f3f4f6; border-top: 3px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                                    <p>Fetching stock information...</p>
+                                </div>
+                            </div>
+
+                            <!-- Step 2: Analysis -->
+                            <div class="ai-step-panel" id="aiStep2" style="display: none;">
+                                <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem;">Step 2: Technical & Fundamental Analysis</h2>
+                                
+                                <div id="aiStep2Loading" style="text-align: center; padding: 2rem;">
+                                    <div style="border: 3px solid #f3f4f6; border-top: 3px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                                    <p>Analyzing technical indicators...</p>
+                                </div>
+
+                                <div id="aiAnalysisResults" style="display: none;">
+                                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
+                                        <h3 style="margin-bottom: 0.75rem;">Technical Indicators</h3>
+                                        <div id="aiIndicatorsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;"></div>
+                                    </div>
+
+                                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem;">
+                                        <h3 style="margin-bottom: 0.75rem;">Fundamental Data</h3>
+                                        <div id="aiFundamentalsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 3: News -->
+                            <div class="ai-step-panel" id="aiStep3" style="display: none;">
+                                <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem;">Step 3: News & Sentiment Analysis</h2>
+                                
+                                <div id="aiStep3Loading" style="text-align: center; padding: 2rem;">
+                                    <div style="border: 3px solid #f3f4f6; border-top: 3px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                                    <p>Fetching latest news...</p>
+                                </div>
+
+                                <div id="aiNewsResults" style="display: none;">
+                                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
+                                        <h3 style="margin-bottom: 0.75rem;">Sentiment Analysis</h3>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                            <div><span style="color: #6b7280;">Overall:</span> <strong id="aiNewsSentiment">-</strong></div>
+                                            <div><span style="color: #6b7280;">Score:</span> <strong id="aiSentimentScore">-</strong></div>
+                                            <div><span style="color: #6b7280;">Articles:</span> <strong id="aiNewsCount">-</strong></div>
+                                        </div>
+                                    </div>
+
+                                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem;">
+                                        <h3 style="margin-bottom: 0.75rem;">Recent Headlines</h3>
+                                        <div id="aiNewsList" style="max-height: 400px; overflow-y: auto;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 4: AI Recommendation -->
+                            <div class="ai-step-panel" id="aiStep4" style="display: none;">
+                                <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem;">Step 4: AI Decision (Optional)</h2>
+                                
+                                <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; color: #1e40af;">
+                                    <strong>ℹ️ Optional Step:</strong> You can skip AI analysis and proceed directly to place your order, or let AI provide a recommendation.
+                                </div>
+
+                                <button class="btn btn-primary" onclick="aiRunAnalysis()" id="aiRunAIBtn">
+                                    🤖 Get AI Recommendation
+                                </button>
+
+                                <div id="aiStep4Loading" style="display: none; text-align: center; padding: 2rem;">
+                                    <div style="border: 3px solid #f3f4f6; border-top: 3px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                                    <p>AI is analyzing all data...</p>
+                                </div>
+
+                                <div id="aiAIResults" style="display: none; margin-top: 1.5rem;">
+                                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+                                        <h3 style="font-size: 1.5rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                            <span>🤖</span>
+                                            <span id="aiAIDecision">-</span>
+                                        </h3>
+                                        <div>
+                                            <strong>Confidence: <span id="aiAIConfidence">-</span>%</strong>
+                                            <div style="background: rgba(255,255,255,0.2); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 0.5rem;">
+                                                <div id="aiConfidenceFill" style="background: #10b981; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                                            </div>
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+                                            <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 0.5rem;">
+                                                <strong style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; opacity: 0.9;">Quantity</strong>
+                                                <span style="font-size: 1.25rem; font-weight: 700;"><span id="aiAIQuantity">-</span> shares</span>
+                                            </div>
+                                            <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 0.5rem;">
+                                                <strong style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; opacity: 0.9;">Entry Price</strong>
+                                                <span style="font-size: 1.25rem; font-weight: 700;">$<span id="aiAIEntry">-</span></span>
+                                            </div>
+                                            <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 0.5rem;">
+                                                <strong style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; opacity: 0.9;">Stop Loss</strong>
+                                                <span style="font-size: 1.25rem; font-weight: 700;">$<span id="aiAIStopLoss">-</span></span>
+                                            </div>
+                                            <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 0.5rem;">
+                                                <strong style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; opacity: 0.9;">Take Profit</strong>
+                                                <span style="font-size: 1.25rem; font-weight: 700;">$<span id="aiAITakeProfit">-</span></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem;">
+                                        <h3 style="margin-bottom: 0.75rem;">AI Reasoning</h3>
+                                        <div id="aiAIReasoning" style="line-height: 1.6;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 5: Execute Order -->
+                            <div class="ai-step-panel" id="aiStep5" style="display: none;">
+                                <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem;">Step 5: Execute Order</h2>
+                                
+                                <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; color: #92400e; font-weight: 500;">
+                                    ⚠️ Maximum order value cannot exceed 25% of your portfolio
+                                </div>
+
+                                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
+                                    <h3 style="margin-bottom: 0.75rem;">Portfolio Status</h3>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                        <div><span style="color: #6b7280;">Total:</span> <strong id="aiPortfolioTotal">-</strong></div>
+                                        <div><span style="color: #6b7280;">Cash:</span> <strong id="aiPortfolioCash">-</strong></div>
+                                        <div><span style="color: #6b7280;">Max (25%):</span> <strong id="aiMaxOrderValue">-</strong></div>
+                                    </div>
+                                </div>
+
+                                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
+                                    <h3 style="margin-bottom: 0.75rem;">Order Details</h3>
+                                    
+                                    <div style="margin-bottom: 1rem;">
+                                        <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Instrument Type</label>
+                                        <select id="aiInstrumentType" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;" onchange="aiToggleInstrumentFields()">
+                                            <option value="STOCK">📈 Stock</option>
+                                            <option value="OPTION">📊 Option</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Stock Fields -->
+                                    <div id="aiStockFields">
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Action</label>
+                                            <select id="aiOrderAction" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                                <option value="BUY">Buy</option>
+                                                <option value="SELL">Sell</option>
+                                            </select>
+                                        </div>
+
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Quantity</label>
+                                            <input type="number" id="aiOrderQuantity" min="1" value="1" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;" oninput="aiUpdateOrderValue()">
+                                            <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                                                Order value: $<span id="aiOrderValue">0.00</span>
+                                            </small>
+                                        </div>
+
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Order Type</label>
+                                            <select id="aiOrderType" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;" onchange="aiToggleLimitPrice()">
+                                                <option value="MKT">Market Order</option>
+                                                <option value="LMT">Limit Order</option>
+                                            </select>
+                                        </div>
+
+                                        <div id="aiLimitPriceGroup" style="display: none; margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Limit Price</label>
+                                            <input type="number" id="aiLimitPrice" step="0.01" placeholder="0.00" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                        </div>
+
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Confidence Level (%)</label>
+                                            <input type="number" id="aiConfidence" min="0" max="100" value="85" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                        </div>
+                                    </div>
+
+                                    <!-- Option Fields -->
+                                    <div id="aiOptionFields" style="display: none;">
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                            <div>
+                                                <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Action</label>
+                                                <select id="aiOptionAction" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                                    <option value="BUY">Buy to Open</option>
+                                                    <option value="SELL">Sell to Open</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Right</label>
+                                                <select id="aiOptionRight" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                                    <option value="C">Call</option>
+                                                    <option value="P">Put</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                            <div>
+                                                <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Strike Price</label>
+                                                <input type="number" id="aiStrike" step="0.5" placeholder="0.00" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                            </div>
+                                            <div>
+                                                <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Expiration Date</label>
+                                                <input type="date" id="aiExpiration" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                            </div>
+                                        </div>
+
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Contracts</label>
+                                            <input type="number" id="aiOptionQuantity" min="1" value="1" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                            <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                                                1 contract = 100 shares
+                                            </small>
+                                        </div>
+
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Order Type</label>
+                                            <select id="aiOptionOrderType" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;" onchange="aiToggleOptionLimitPrice()">
+                                                <option value="MKT">Market Order</option>
+                                                <option value="LMT">Limit Order</option>
+                                            </select>
+                                        </div>
+
+                                        <div id="aiOptionLimitPriceGroup" style="display: none; margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Limit Price (per contract)</label>
+                                            <input type="number" id="aiOptionLimitPrice" step="0.01" placeholder="0.00" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                        </div>
+
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Confidence Level (%)</label>
+                                            <input type="number" id="aiOptionConfidence" min="0" max="100" value="85" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="aiOrderValidation" style="display: none; background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; color: #991b1b;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Wizard Actions -->
+                        <div style="display: flex; justify-content: space-between; padding: 1.5rem 2rem; background: #f9fafb; border-top: 1px solid #e5e7eb;">
+                            <button class="btn btn-secondary" onclick="aiPreviousStep()" id="aiPrevBtn" disabled>
+                                ← Previous
+                            </button>
+                            <button class="btn btn-primary" onclick="aiNextStep()" id="aiNextBtn">
+                                Next →
+                            </button>
+                            <button class="btn btn-success" onclick="aiExecuteOrder()" id="aiExecuteBtn" style="display: none; background: #10b981;">
+                                ✓ Execute Order
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>

@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Order Assistant | Botrade</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header p {
+            color: #6b7280;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #3b82f6;
+            text-decoration: none;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .back-btn:hover {
+            color: #2563eb;
+        }
+
+        .wizard-container {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .wizard-steps {
+            display: flex;
+            background: #f9fafb;
+            padding: 1.5rem 2rem;
+            gap: 2rem;
+            overflow-x: auto;
+        }
+
+        .wizard-step {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #9ca3af;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .wizard-step.active {
+            color: #3b82f6;
+        }
+
+        .wizard-step.completed {
+            color: #10b981;
+        }
+
+        .step-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .wizard-step.active .step-number {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .wizard-step.completed .step-number {
+            background: #10b981;
+            color: white;
+        }
+
+        .wizard-content {
+            padding: 2rem;
+        }
+
+        .step-panel {
+            display: none;
+        }
+
+        .step-panel.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-primary:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .wizard-actions {
+            display: flex;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .info-card h3 {
+            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .indicator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .indicator-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .indicator-card h4 {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .indicator-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.25rem;
+        }
+
+        .indicator-signal {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            display: inline-block;
+            font-weight: 600;
+        }
+
+        .signal-bullish {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .signal-bearish {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .signal-neutral {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .news-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .news-item {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .news-item:last-child {
+            border-bottom: none;
+        }
+
+        .news-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            display: block;
+            text-decoration: none;
+        }
+
+        .news-title:hover {
+            color: #3b82f6;
+        }
+
+        .news-meta {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .ai-recommendation {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .ai-recommendation h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .confidence-bar {
+            background: rgba(255,255,255,0.2);
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .confidence-fill {
+            background: #10b981;
+            height: 100%;
+            transition: width 0.3s;
+        }
+
+        .recommendation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .recommendation-item {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+
+        .recommendation-item strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        .recommendation-item span {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .portfolio-warning {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            color: #92400e;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← Back to Dashboard</a>
+        
+        <div class="header">
+            <h1>🤖 AI Order Assistant</h1>
+            <p>Let AI analyze the market and help you make informed trading decisions</p>
+        </div>
+
+        <div class="wizard-container">
+            <!-- Wizard Steps -->
+            <div class="wizard-steps">
+                <div class="wizard-step active" data-step="1">
+                    <span class="step-number">1</span>
+                    <span>Choose Stock</span>
+                </div>
+                <div class="wizard-step" data-step="2">
+                    <span class="step-number">2</span>
+                    <span>Analysis</span>
+                </div>
+                <div class="wizard-step" data-step="3">
+                    <span class="step-number">3</span>
+                    <span>News</span>
+                </div>
+                <div class="wizard-step" data-step="4">
+                    <span class="step-number">4</span>
+                    <span>AI Recommendation</span>
+                </div>
+                <div class="wizard-step" data-step="5">
+                    <span class="step-number">5</span>
+                    <span>Execute Order</span>
+                </div>
+            </div>
+
+            <!-- Wizard Content -->
+            <div class="wizard-content">
+                <!-- Step 1: Choose Stock -->
+                <div class="step-panel active" id="step1">
+                    <h2 style="margin-bottom: 1.5rem;">Step 1: Choose Stock</h2>
+                    
+                    <div class="form-group">
+                        <label for="stockSymbol">Stock Symbol</label>
+                        <input type="text" id="stockSymbol" placeholder="e.g., AAPL, NVDA, TSLA" style="text-transform: uppercase;">
+                    </div>
+
+                    <div id="stockInfo" class="info-card" style="display: none;">
+                        <h3 id="stockName"></h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Price</span>
+                                <span class="info-value" id="stockPrice">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Open</span>
+                                <span class="info-value" id="stockOpen">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">High</span>
+                                <span class="info-value" id="stockHigh">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Low</span>
+                                <span class="info-value" id="stockLow">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Volume</span>
+                                <span class="info-value" id="stockVolume">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Market Cap</span>
+                                <span class="info-value" id="stockMarketCap">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="loading" id="step1Loading">
+                        <div class="spinner"></div>
+                        <p>Fetching stock information...</p>
+                    </div>
+                </div>
+
+                <!-- Step 2: Analysis -->
+                <div class="step-panel" id="step2">
+                    <h2 style="margin-bottom: 1.5rem;">Step 2: Technical Analysis</h2>
+                    
+                    <div class="loading active" id="step2Loading">
+                        <div class="spinner"></div>
+                        <p>Analyzing technical indicators...</p>
+                    </div>
+
+                    <div id="analysisResults" style="display: none;">
+                        <div class="info-card">
+                            <h3>Technical Indicators</h3>
+                            <div class="indicator-grid" id="indicatorsGrid"></div>
+                        </div>
+
+                        <div class="info-card">
+                            <h3>Fundamental Data</h3>
+                            <div class="info-grid" id="fundamentalsGrid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: News -->
+                <div class="step-panel" id="step3">
+                    <h2 style="margin-bottom: 1.5rem;">Step 3: News & Sentiment</h2>
+                    
+                    <div class="loading active" id="step3Loading">
+                        <div class="spinner"></div>
+                        <p>Fetching latest news...</p>
+                    </div>
+
+                    <div id="newsResults" style="display: none;">
+                        <div class="info-card">
+                            <h3>Sentiment Analysis</h3>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Overall Sentiment</span>
+                                    <span class="info-value" id="newsSentiment">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Sentiment Score</span>
+                                    <span class="info-value" id="sentimentScore">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Total Articles</span>
+                                    <span class="info-value" id="newsCount">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="info-card">
+                            <h3>Recent Headlines</h3>
+                            <div class="news-list" id="newsList"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: AI Recommendation -->
+                <div class="step-panel" id="step4">
+                    <h2 style="margin-bottom: 1.5rem;">Step 4: AI Recommendation (Optional)</h2>
+                    
+                    <div class="alert alert-info">
+                        <strong>ℹ️ Optional Step:</strong> You can skip AI analysis and proceed directly to place your order, or let AI provide a recommendation based on all available data.
+                    </div>
+
+                    <button class="btn btn-primary" onclick="runAIAnalysis()" id="runAIBtn">
+                        🤖 Get AI Recommendation
+                    </button>
+
+                    <div class="loading" id="step4Loading">
+                        <div class="spinner"></div>
+                        <p>AI is analyzing all data...</p>
+                    </div>
+
+                    <div id="aiResults" style="display: none; margin-top: 1.5rem;">
+                        <div class="ai-recommendation">
+                            <h3>
+                                <span>🤖</span>
+                                <span id="aiDecision">-</span>
+                            </h3>
+                            <div>
+                                <strong>Confidence: <span id="aiConfidence">-</span>%</strong>
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" id="confidenceFill" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div class="recommendation-grid">
+                                <div class="recommendation-item">
+                                    <strong>Recommended Quantity</strong>
+                                    <span id="aiQuantity">-</span> shares
+                                </div>
+                                <div class="recommendation-item">
+                                    <strong>Entry Price</strong>
+                                    $<span id="aiEntry">-</span>
+                                </div>
+                                <div class="recommendation-item">
+                                    <strong>Stop Loss</strong>
+                                    $<span id="aiStopLoss">-</span>
+                                </div>
+                                <div class="recommendation-item">
+                                    <strong>Take Profit</strong>
+                                    $<span id="aiTakeProfit">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="info-card">
+                            <h3>AI Reasoning</h3>
+                            <div id="aiReasoning" style="line-height: 1.6;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: Execute Order -->
+                <div class="step-panel" id="step5">
+                    <h2 style="margin-bottom: 1.5rem;">Step 5: Execute Order</h2>
+                    
+                    <div class="portfolio-warning" id="portfolioWarning">
+                        ⚠️ Maximum order value cannot exceed 25% of your portfolio
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Portfolio Status</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Total Portfolio</span>
+                                <span class="info-value" id="portfolioTotal">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Available Cash</span>
+                                <span class="info-value" id="portfolioCash">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Max Order Value (25%)</span>
+                                <span class="info-value" id="maxOrderValue">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Order Details</h3>
+                        <div class="form-group">
+                            <label>Action</label>
+                            <select id="orderAction">
+                                <option value="BUY">Buy</option>
+                                <option value="SELL">Sell</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Quantity</label>
+                            <input type="number" id="orderQuantity" min="1" value="1">
+                            <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                                Order value: $<span id="orderValue">0.00</span>
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Order Type</label>
+                            <select id="orderType">
+                                <option value="MKT">Market Order</option>
+                                <option value="LMT">Limit Order</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="limitPriceGroup" style="display: none;">
+                            <label>Limit Price</label>
+                            <input type="number" id="limitPrice" step="0.01" placeholder="0.00">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Confidence Level (%)</label>
+                            <input type="number" id="confidence" min="0" max="100" value="85">
+                        </div>
+                    </div>
+
+                    <div id="orderValidation" class="alert alert-error" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Wizard Actions -->
+            <div class="wizard-actions">
+                <button class="btn btn-secondary" onclick="previousStep()" id="prevBtn" disabled>
+                    ← Previous
+                </button>
+                <button class="btn btn-primary" onclick="nextStep()" id="nextBtn">
+                    Next →
+                </button>
+                <button class="btn btn-success" onclick="executeOrder()" id="executeBtn" style="display: none;">
+                    ✓ Execute Order
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/ai-order.js"></script>
+</body>
+</html>
