@@ -41,6 +41,42 @@ services:
       retries: 5
     command: redis-server --appendonly yes
 
+  # TWS Gateway (Interactive Brokers)
+  tws-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:latest
+    container_name: botrade-tws-gateway
+    restart: unless-stopped
+    environment:
+      TWS_USERID: ${TWS_USERID}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      VNC_SERVER_PASSWORD: ${VNC_PASSWORD:-password123}
+      IBC_ReadOnlyApi: "no"
+      IBC_TrustedIPs: "0.0.0.0/0"
+      IBC_BypassOrderPrecautions: "yes"
+      SOCAT_PORT: 4004
+    ports:
+      - "4001:4001"  # Live API
+      - "4002:4002"  # Paper API
+      - "4004:4004"  # Proxy API
+      - "5900:5900"  # VNC Port
+    networks:
+      - botrade-network
+    volumes:
+      - tws_settings:/home/ibgateway/Jts
+
+  # noVNC Web Interface for TWS Gateway
+  novnc:
+    build: ./novnc
+    container_name: botrade-novnc
+    restart: unless-stopped
+    ports:
+      - "6080:8080"
+    depends_on:
+      - tws-gateway
+    networks:
+      - botrade-network
+
   # Trading Bot Application
   app:
     build:
@@ -53,6 +89,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      tws-gateway:
+        condition: service_started
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://admin:${DB_PASSWORD:-admin123}@postgres:5432/botrade?schema=public
@@ -64,10 +102,11 @@ services:
       POLYGON_API_KEY: ${POLYGON_API_KEY}
       NEWSAPI_KEY: ${NEWSAPI_KEY}
       
-      # IBKR (connects to host machine)
-      IB_HOST: host.docker.internal
-      IB_PORT: ${IB_PORT:-7497}
-      IB_CLIENT_ID: ${IB_CLIENT_ID:-1}
+      # IBKR (connects to TWS Gateway container)
+      IB_HOST: tws-gateway
+      IB_PORT: ${TWS_PORT:-4004}
+      IB_CLIENT_ID: ${IB_CLIENT_ID:-2}
+      TWS_ACCOUNT_ID: ${TWS_ACCOUNT_ID:-}
       
       # Trading Settings
       MIN_CONFIDENCE: ${MIN_CONFIDENCE:-70}
@@ -83,8 +122,6 @@ services:
       - ./data:/app/data
     networks:
       - botrade-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   # Prisma Studio (optional - for database management)
   prisma-studio:
@@ -112,3 +149,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  tws_settings:

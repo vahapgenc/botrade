@@ -43,10 +43,19 @@ app.use('/api/market', require('./routes/market'));
 app.use('/api/fundamental', require('./routes/fundamental'));
 app.use('/api/news', require('./routes/news'));
 
-// Static files for dashboard (optional)
-app.use(express.static(path.join(__dirname, '../web/public')));
+// Dashboard routes - BEFORE 404 handler
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../web/dashboard.html'));
+});
 
-// 404 handler
+app.get('/dashboard.js', (req, res) => {
+    res.sendFile(path.join(__dirname, '../web/dashboard.js'));
+});
+
+// Static files for dashboard
+app.use(express.static(path.join(__dirname, '../web')));
+
+// 404 handler - MUST BE AFTER all other routes
 app.use((req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });

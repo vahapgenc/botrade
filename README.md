@@ -5,7 +5,18 @@
 [![PostgreSQL](https://img.shields.io/badge/postgresql-15-blue.svg)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-An advanced algorithmic trading platform that combines sentiment analysis, technical indicators, and AI-powered decision making to execute trades via Interactive Brokers.
+An advanced algorithmic trading platform that combines sentiment analysis, technical indicators, and AI-powered decision making to execute trades via Interactive Brokers TWS Gateway.
+
+## ✨ New: TWS Gateway Integration
+
+✅ **Live Trading Now Available!** - Fully integrated Interactive Brokers TWS Gateway with order execution capabilities.
+
+- 🔌 **TWS Gateway**: Connects to IB via Docker container
+- 🖥️ **noVNC**: Web-based TWS Gateway monitoring (http://localhost:6080)
+- 📡 **REST API**: 8 new endpoints for order execution and management
+- 🛡️ **Risk Controls**: Built-in confidence thresholds and position limits
+
+**Quick Start**: See [TWS_QUICKSTART.md](TWS_QUICKSTART.md) | **Full Guide**: See [doc/TWS_INTEGRATION.md](doc/TWS_INTEGRATION.md)
 
 ---
 
@@ -16,16 +27,20 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed architecture.
 ```
 botrade/
 ├── src/
-│   ├── services/       # Business logic (sentiment, technical, ai, portfolio, execution)
+│   ├── services/       # Business logic
+│   │   ├── ibkr/       # ✨ NEW: TWS client & order service
+│   │   ├── ai/         # AI decision engine
+│   │   ├── sentiment/  # Market sentiment analysis
+│   │   └── technical/  # Technical indicators
 │   ├── database/       # Prisma ORM & models
-│   ├── api/            # REST API endpoints
-│   ├── web/            # Web UI
+│   ├── api/            # REST API endpoints (✨ NEW: trading routes)
 │   └── utils/          # Shared utilities
+├── novnc/              # ✨ NEW: noVNC Docker setup
 ├── config/             # Configuration files
 ├── prisma/             # Database schema & migrations
 ├── doc/                # Documentation
 ├── tests/              # Test files
-└── docker-compose.yml  # Docker orchestration
+└── docker-compose.yml  # Docker orchestration (✨ NEW: TWS Gateway)
 ```
 
 ---
@@ -35,32 +50,55 @@ botrade/
 ### Prerequisites
 - Docker Desktop installed
 - Git installed
+- Interactive Brokers account (paper or live)
 
 ### Setup
 ```bash
 # 1. Clone and navigate to project
-cd c:\projects\teblab\botrade
+cd c:\projects\trading\botrade
 
 # 2. Configure environment
-# Edit .env file and set your API keys and DB password
+cp .env.example .env
+# Edit .env with your API keys, DB password, and IB credentials
 
-# 3. Build and start services
+# 3. Install dependencies
+npm install
+
+# 4. Build and start services (including TWS Gateway)
 npm run docker:build
 npm run docker:up
 
-# 4. Initialize database
-docker-compose exec app npm install @prisma/client
-docker-compose exec app npm install --save-dev prisma
-docker-compose exec app npx prisma init
+# 5. Wait for services to start (30-60 seconds for TWS Gateway)
+docker-compose logs -f
 
-# 5. Create database schema (Step 2)
-# Copy schema from doc/step2_database.md to prisma/schema.prisma
-docker-compose exec app npx prisma migrate dev --name init
+# 6. Test TWS connection
+curl http://localhost:3000/api/trading/status
 
-# 6. Verify everything is running
-docker-compose ps
-curl http://localhost:3000/health
+# 7. Access TWS Gateway UI
+# Open browser: http://localhost:6080
+# Password: password123 (or your VNC_PASSWORD from .env)
 ```
+
+### Test TWS Integration
+```bash
+# Run integration test
+node tests/test-tws-integration.js
+
+# Expected output: Connection status, account summary, positions
+```
+
+---
+
+## 🎯 Services & URLs
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Trading API | http://localhost:3000 | Main Node.js app with AI & trading |
+| TWS Gateway VNC | http://localhost:6080 | Web-based TWS Gateway monitoring |
+| Health Check | http://localhost:3000/health | API health status |
+| PostgreSQL | localhost:5432 | Database (admin/admin123) |
+| Redis | localhost:6379 | Cache server |
+| Prisma Studio | http://localhost:5555 | Database GUI (optional) |
 
 ---
 
@@ -75,6 +113,23 @@ npm run docker:logs       # View app logs
 npm run docker:restart    # Restart app container
 ```
 
+### Trading Commands
+```bash
+# Test TWS connection
+curl http://localhost:3000/api/trading/status
+
+# Get account summary
+curl http://localhost:3000/api/trading/account
+
+# Get positions
+curl http://localhost:3000/api/trading/positions
+
+# Place order (paper trading)
+curl -X POST http://localhost:3000/api/trading/execute \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"AAPL","action":"BUY","quantity":1,"confidence":85}'
+```
+
 ### Database Commands
 ```bash
 npm run prisma:migrate    # Run database migrations
@@ -87,6 +142,7 @@ npm run prisma:studio     # Open Prisma Studio (DB GUI)
 npm start                 # Start app (local)
 npm run dev               # Start with auto-reload (local)
 npm test                  # Run tests
+node tests/test-tws-integration.js  # Test TWS integration
 ```
 
 See [doc/DOCKER_COMMANDS.md](doc/DOCKER_COMMANDS.md) for comprehensive command reference.
