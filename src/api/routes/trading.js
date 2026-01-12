@@ -38,8 +38,12 @@ router.get('/account', asyncHandler(async (req, res) => {
     const summary = await orderService.getAccountSummary();
     
     res.json({
-        success: true,
-        account: summary
+        accountId: summary.accountId || process.env.TWS_ACCOUNT_ID || '',
+        accountName: summary.accountId || 'Paper Trading Account',
+        netLiquidation: summary.netLiquidation || 0,
+        cashBalance: summary.cashBalance || 0,
+        buyingPower: summary.buyingPower || 0,
+        currency: summary.currency || 'USD'
     });
 }));
 
@@ -69,9 +73,9 @@ router.get('/orders/history', asyncHandler(async (req, res) => {
     });
 }));
 
-// POST /api/trading/execute - Execute a single trade
+// POST /api/trading/execute - Execute a single trade (stock or option)
 router.post('/execute', asyncHandler(async (req, res) => {
-    const { symbol, action, quantity, orderType, limitPrice, confidence } = req.body;
+    const { symbol, action, quantity, orderType, limitPrice, confidence, secType, strike, expiry, optionType } = req.body;
     
     if (!symbol || !action || !quantity) {
         throw new AppError('Missing required fields: symbol, action, quantity', 400);
@@ -81,7 +85,12 @@ router.post('/execute', asyncHandler(async (req, res) => {
         throw new AppError('Action must be BUY or SELL', 400);
     }
     
-    logger.info(`Trade execution requested: ${action} ${quantity} ${symbol}`);
+    // Validate options parameters if it's an option order
+    if (secType === 'OPT' && (!strike || !expiry || !optionType)) {
+        throw new AppError('Options orders require strike, expiry, and optionType', 400);
+    }
+    
+    logger.info(`Trade execution requested: ${action} ${quantity} ${symbol}${secType === 'OPT' ? ` ${strike}${optionType} ${expiry}` : ''}`);
     
     const result = await orderService.executeTrade({
         symbol,
@@ -89,7 +98,11 @@ router.post('/execute', asyncHandler(async (req, res) => {
         quantity: parseInt(quantity),
         orderType: orderType || 'MARKET',
         limitPrice: limitPrice ? parseFloat(limitPrice) : null,
-        confidence: confidence || 100
+        confidence: confidence || 100,
+        secType: secType || 'STK',
+        strike: strike ? parseFloat(strike) : null,
+        expiry: expiry || null,
+        optionType: optionType || null
     });
     
     res.json(result);

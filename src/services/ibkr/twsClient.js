@@ -264,6 +264,64 @@ class TWSClient extends EventEmitter {
     }
 
     /**
+     * Place an option order
+     */
+    async placeOptionOrder(symbol, action, quantity, strike, expiry, optionType, orderType = 'LMT', limitPrice = null, secType = 'OPT', exchange = 'SMART') {
+        if (!this.connected) {
+            await this.connect();
+        }
+
+        try {
+            // Create options contract
+            const contract = {
+                symbol: symbol.toUpperCase(),
+                secType: secType,
+                exchange: exchange,
+                currency: 'USD',
+                lastTradeDateOrContractMonth: expiry, // Format: YYYYMMDD
+                strike: parseFloat(strike),
+                right: optionType.toUpperCase() // 'C' for Call, 'P' for Put
+            };
+
+            const order = {
+                action: action === 'BUY' ? OrderAction.BUY : OrderAction.SELL,
+                totalQuantity: quantity,
+                transmit: true
+            };
+
+            if (orderType === 'LMT') {
+                order.orderType = OrderType.LMT;
+                order.lmtPrice = limitPrice;
+            } else {
+                order.orderType = OrderType.MKT;
+            }
+
+            const orderId = this.nextOrderId++;
+
+            logger.info(`Placing ${action} ${orderType} option order: ${quantity} ${symbol} ${expiry} ${strike}${optionType} @ ${limitPrice || 'MKT'} (OrderID: ${orderId})`);
+
+            this.ib.placeOrder(orderId, contract, order);
+
+            return {
+                success: true,
+                orderId,
+                symbol,
+                action,
+                quantity,
+                strike,
+                expiry,
+                optionType,
+                limitPrice,
+                orderType
+            };
+
+        } catch (error) {
+            logger.error('Failed to place option order:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Cancel an order
      */
     async cancelOrder(orderId) {
@@ -298,18 +356,56 @@ class TWSClient extends EventEmitter {
     }
 
     /**
-     * Get account summary
+     * Get account summary with detailed information
      */
     async getAccountSummary() {
         if (!this.connected) {
             await this.connect();
         }
 
-        // Request account summary
-        const reqId = Math.floor(Math.random() * 10000);
-        this.ib.reqAccountSummary(reqId, 'All', '$LEDGER');
-
-        return this.accountSummary;
+        return new Promise((resolve) => {
+            const reqId = Math.floor(Math.random() * 10000);
+            const summaryData = {};
+            
+            const summaryHandler = (id, account, tag, value, currency) => {
+                if (id === reqId) {
+                    summaryData[tag] = { value: parseFloat(value) || value, currency };
+                }
+            };
+            
+            const summaryEndHandler = (id) => {
+                if (id === reqId) {
+                    this.ib.removeListener('accountSummary', summaryHandler);
+                    this.ib.removeListener('accountSummaryEnd', summaryEndHandler);
+                    resolve({
+                        accountId: this.accountId || summaryData.AccountCode?.value || '',
+                        netLiquidation: summaryData.NetLiquidation?.value || 0,
+                        cashBalance: summaryData.CashBalance?.value || summaryData.TotalCashValue?.value || 0,
+                        buyingPower: summaryData.BuyingPower?.value || 0,
+                        currency: summaryData.NetLiquidation?.currency || 'USD'
+                    });
+                }
+            };
+            
+            this.ib.on('accountSummary', summaryHandler);
+            this.ib.on('accountSummaryEnd', summaryEndHandler);
+            
+            // Request key account values
+            this.ib.reqAccountSummary(reqId, 'All', 'NetLiquidation,TotalCashValue,BuyingPower,CashBalance');
+            
+            // Timeout after 5 seconds
+            setTimeout(() => {
+                this.ib.removeListener('accountSummary', summaryHandler);
+                this.ib.removeListener('accountSummaryEnd', summaryEndHandler);
+                resolve({
+                    accountId: this.accountId || '',
+                    netLiquidation: this.accountSummary.NetLiquidation?.value || 0,
+                    cashBalance: this.accountSummary.CashBalance?.value || 0,
+                    buyingPower: this.accountSummary.BuyingPower?.value || 0,
+                    currency: 'USD'
+                });
+            }, 5000);
+        });
     }
 
     /**

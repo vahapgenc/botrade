@@ -11,10 +11,10 @@ class OrderService {
      * Execute a trade based on AI decision
      */
     async executeTrade(tradeData) {
-        const { symbol, action, quantity, orderType = 'MARKET', limitPrice = null, confidence } = tradeData;
+        const { symbol, action, quantity, orderType = 'MARKET', limitPrice = null, confidence, secType = 'STK', strike = null, expiry = null, optionType = null } = tradeData;
 
         try {
-            logger.info(`Executing trade: ${action} ${quantity} ${symbol} (confidence: ${confidence}%)`);
+            logger.info(`Executing trade: ${action} ${quantity} ${symbol} (confidence: ${confidence}%)${secType === 'OPT' ? ` ${strike}${optionType} ${expiry}` : ''}`);
 
             // Validate minimum confidence
             const minConfidence = parseInt(process.env.MIN_CONFIDENCE) || 70;
@@ -33,10 +33,23 @@ class OrderService {
 
             // Place order based on type
             let orderResult;
-            if (orderType === 'LIMIT' && limitPrice) {
-                orderResult = await twsClient.placeLimitOrder(symbol, action, quantity, limitPrice);
+            
+            if (secType === 'OPT') {
+                // Options order
+                if (!strike || !expiry || !optionType) {
+                    throw new Error('Options orders require strike, expiry, and optionType');
+                }
+                orderResult = await twsClient.placeOptionOrder(
+                    symbol, action, quantity, strike, expiry, optionType, 
+                    orderType, limitPrice
+                );
             } else {
-                orderResult = await twsClient.placeMarketOrder(symbol, action, quantity);
+                // Stock order
+                if (orderType === 'LIMIT' && limitPrice) {
+                    orderResult = await twsClient.placeLimitOrder(symbol, action, quantity, limitPrice);
+                } else {
+                    orderResult = await twsClient.placeMarketOrder(symbol, action, quantity);
+                }
             }
 
             // Record order in database

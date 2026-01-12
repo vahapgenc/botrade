@@ -358,6 +358,45 @@
             display: none !important;
         }
 
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 1rem 0;
+        }
+
+        .pagination-controls button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pagination-controls button:hover:not(:disabled) {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }
+
+        .pagination-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-controls button.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .pagination-controls span {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
@@ -468,11 +507,17 @@
                     <div class="action-section">
                         <h2>Quick Actions</h2>
                         <div class="action-buttons">
-                            <button class="btn btn-primary" onclick="openTradeModal()">
+                            <button class="btn btn-primary" onclick="openStockModal()">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                 </svg>
-                                New Trade
+                                New Stock Order
+                            </button>
+                            <button class="btn btn-primary" onclick="openOptionModal()" style="background: #7c3aed;">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                New Option Order
                             </button>
                             <button class="btn btn-success" id="gatewayBtn" onclick="toggleGatewayFrame()">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -533,60 +578,218 @@
                 <div id="positionsView" class="hidden">
                     <h1 class="page-title">Positions</h1>
                     <p class="page-subtitle">Your current trading positions</p>
-                    <div id="positionsList"></div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <button class="btn btn-primary" onclick="openStockModal()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            New Stock Order
+                        </button>
+                        <button class="btn btn-primary" onclick="openOptionModal()" style="background: #7c3aed; margin-left: 0.5rem;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            New Option Order
+                        </button>
+                    </div>
+                    
+                    <input type="text" id="positionsSearch" placeholder="🔍 Search positions..." style="width: 100%; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem;" onkeyup="filterPositions()" />
+                    
+                    <div id="positionsList" style="background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"></div>
+                    <div id="positionsPagination" class="pagination-controls"></div>
                 </div>
 
                 <!-- Orders View (hidden by default) -->
                 <div id="ordersView" class="hidden">
                     <h1 class="page-title">Orders</h1>
                     <p class="page-subtitle">Order history and management</p>
-                    <div id="ordersList"></div>
+                    <input type="text" id="ordersSearch" placeholder="🔍 Search orders..." style="padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 100%; max-width: 400px; margin-bottom: 1rem;" onkeyup="filterOrders()" />
+                    
+                    <!-- Filter and Actions -->
+                    <div style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <label style="margin-right: 0.5rem; font-weight: 600;">Filter:</label>
+                            <select id="orderFilter" onchange="filterOrders()" style="padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #d1d5db;">
+                                <option value="ALL">All Orders</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="SUBMITTED">Submitted</option>
+                                <option value="FILLED">Filled</option>
+                                <option value="CANCELLED">Cancelled</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button class="btn btn-primary" onclick="openStockModal()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                New Stock Order
+                            </button>
+                            <button class="btn btn-primary" onclick="openOptionModal()" style="background: #7c3aed; margin-left: 0.5rem;">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                New Option Order
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="ordersList" style="background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"></div>
+                    <div id="ordersPagination" class="pagination-controls"></div>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Trade Modal -->
-    <div class="modal" id="tradeModal">
-        <div class="modal-content">
+    <!-- Stock Order Modal -->
+    <div class="modal" id="stockModal">
+        <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2>Place Order</h2>
-                <button class="close-btn" onclick="closeTradeModal()">&times;</button>
+                <h2>📈 Stock Order</h2>
+                <button class="close-btn" onclick="closeStockModal()">&times;</button>
             </div>
-            <div id="tradeAlert" class="hidden"></div>
-            <form id="tradeForm" onsubmit="submitTrade(event)">
-                <div class="form-group">
-                    <label>Symbol</label>
-                    <input type="text" id="symbol" required placeholder="e.g., AAPL" />
+            <div id="stockAlert" class="hidden"></div>
+            <form id="stockForm" onsubmit="submitStockOrder(event)">
+                <!-- Stock Details Section -->
+                <div style="background: #f0fdf4; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Stock Details</h3>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Symbol *</label>
+                        <input type="text" id="stockSymbol" required placeholder="e.g., AAPL" style="text-transform: uppercase;" />
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Action</label>
-                    <select id="action" required>
-                        <option value="BUY">Buy</option>
-                        <option value="SELL">Sell</option>
-                    </select>
+
+                <!-- Order Details Section -->
+                <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Order Details</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Action *</label>
+                            <select id="stockAction" required>
+                                <option value="BUY">🟢 Buy</option>
+                                <option value="SELL">🔴 Sell</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Quantity *</label>
+                            <input type="number" id="stockQuantity" required min="1" value="1" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Order Type *</label>
+                            <select id="stockOrderType" onchange="toggleStockLimitPrice()">
+                                <option value="MKT">Market (MKT)</option>
+                                <option value="LMT">Limit (LMT)</option>
+                            </select>
+                        </div>
+                        <div class="form-group hidden" id="stockLimitPriceGroup" style="margin-bottom: 0;">
+                            <label>Limit Price *</label>
+                            <input type="number" id="stockLimitPrice" step="0.01" placeholder="0.00" />
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Quantity</label>
-                    <input type="number" id="quantity" required min="1" value="1" />
+
+                <!-- AI Settings Section -->
+                <div style="background: #fef3c7; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">AI Confidence</h3>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Confidence Level (%)</label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <input type="range" id="stockConfidenceSlider" min="0" max="100" value="85" oninput="document.getElementById('stockConfidence').value = this.value; updateStockConfidenceColor(this.value)" style="flex: 1;" />
+                            <input type="number" id="stockConfidence" min="0" max="100" value="85" onchange="document.getElementById('stockConfidenceSlider').value = this.value" style="width: 70px; text-align: center;" />
+                        </div>
+                        <small style="color: #6b7280; font-size: 0.75rem;">Minimum 70% required for execution</small>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Order Type</label>
-                    <select id="orderType" onchange="toggleLimitPrice()">
-                        <option value="MARKET">Market</option>
-                        <option value="LIMIT">Limit</option>
-                    </select>
-                </div>
-                <div class="form-group hidden" id="limitPriceGroup">
-                    <label>Limit Price</label>
-                    <input type="number" id="limitPrice" step="0.01" placeholder="0.00" />
-                </div>
-                <div class="form-group">
-                    <label>AI Confidence (%)</label>
-                    <input type="number" id="confidence" min="0" max="100" value="85" />
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;" id="submitBtn">
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem;" id="stockSubmitBtn">
                     Place Order
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Option Order Modal -->
+    <div class="modal" id="optionModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2>📊 Option Order</h2>
+                <button class="close-btn" onclick="closeOptionModal()">&times;</button>
+            </div>
+            <div id="optionAlert" class="hidden"></div>
+            <form id="optionForm" onsubmit="submitOptionOrder(event)">
+                <!-- Contract Details Section -->
+                <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Contract Details</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Symbol *</label>
+                            <input type="text" id="optionSymbol" required placeholder="e.g., AAPL" style="text-transform: uppercase;" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Option Type *</label>
+                            <select id="optionType" required>
+                                <option value="C">📈 Call</option>
+                                <option value="P">📉 Put</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Strike Price *</label>
+                            <input type="number" id="optionStrike" required step="0.01" placeholder="0.00" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Expiration Date *</label>
+                            <input type="date" id="optionExpiryDate" required onchange="updateExpiryFormat()" />
+                            <input type="hidden" id="optionExpiry" />
+                            <small style="color: #6b7280; font-size: 0.75rem;">Select expiration date</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Details Section -->
+                <div style="background: #f0fdf4; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Order Details</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Action *</label>
+                            <select id="optionAction" required>
+                                <option value="BUY">🟢 Buy to Open</option>
+                                <option value="SELL">🔴 Sell to Close</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Quantity (Contracts) *</label>
+                            <input type="number" id="optionQuantity" required min="1" value="1" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Order Type *</label>
+                            <select id="optionOrderType" onchange="toggleOptionLimitPrice()">
+                                <option value="LMT" selected>Limit (LMT)</option>
+                                <option value="MKT">Market (MKT)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="optionLimitPriceGroup" style="margin-bottom: 0;">
+                            <label>Limit Price (per contract) *</label>
+                            <input type="number" id="optionLimitPrice" step="0.01" placeholder="0.00" required />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Settings Section -->
+                <div style="background: #fef3c7; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">AI Confidence</h3>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Confidence Level (%)</label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <input type="range" id="optionConfidenceSlider" min="0" max="100" value="85" oninput="document.getElementById('optionConfidence').value = this.value; updateConfidenceColor(this.value)" style="flex: 1;" />
+                            <input type="number" id="optionConfidence" min="0" max="100" value="85" onchange="document.getElementById('optionConfidenceSlider').value = this.value" style="width: 70px; text-align: center;" />
+                        </div>
+                        <small style="color: #6b7280; font-size: 0.75rem;">Minimum 70% required for execution</small>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; background: #7c3aed; padding: 1rem;" id="optionSubmitBtn">
+                    Place Option Order
                 </button>
             </form>
         </div>
