@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Order - Botrade</title>
+    <title>Orders - Botrade</title>
     <link rel="stylesheet" href="/common.css">
 </head>
 <body>
@@ -24,13 +24,13 @@
                     </svg>
                     Positions
                 </a>
-                <a href="/orders.html" class="nav-item">
+                <a href="/orders.html" class="nav-item active">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                     </svg>
                     Orders
                 </a>
-                <a href="/ai-order.html" class="nav-item active">
+                <a href="/ai-order.html" class="nav-item">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
                     </svg>
@@ -54,32 +54,45 @@
 
             <!-- Content -->
             <div class="content">
-                <h1 class="page-title">🤖 AI Order Assistant</h1>
-                <p class="page-subtitle">Let AI analyze the market and help you make informed trading decisions</p>
+                <h1 class="page-title">Orders</h1>
+                <p class="page-subtitle">Order history and management</p>
+                <input type="text" id="ordersSearch" placeholder="🔍 Search orders..." style="padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 100%; max-width: 400px; margin-bottom: 1rem;" onkeyup="filterOrders()" />
                 
-                <div style="background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 2rem; text-align: center;">
-                    <h2 style="margin-bottom: 1rem;">AI Order Wizard Coming Soon</h2>
-                    <p style="color: #6b7280; margin-bottom: 2rem;">The AI wizard is being migrated to this page. For now, please use the stock or option order buttons below.</p>
-                    
-                    <div style="display: flex; gap: 1rem; justify-content: center;">
-                        <button class="btn btn-primary" onclick="window.location.href='/portfolio.html'">
+                <!-- Filter and Actions -->
+                <div style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <label style="margin-right: 0.5rem; font-weight: 600;">Filter:</label>
+                        <select id="orderFilter" onchange="filterOrders()" style="padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #d1d5db;">
+                            <option value="ALL">All Orders</option>
+                            <option value="PENDING">Pending</option>
+                            <option value="SUBMITTED">Submitted</option>
+                            <option value="FILLED">Filled</option>
+                            <option value="CANCELLED">Cancelled</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="openStockModal()">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                             </svg>
-                            Place Stock Order
+                            New Stock Order
                         </button>
-                        <button class="btn btn-primary" style="background: #7c3aed;" onclick="window.location.href='/portfolio.html'">
+                        <button class="btn btn-primary" onclick="openOptionModal()" style="background: #7c3aed; margin-left: 0.5rem;">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                             </svg>
-                            Place Option Order
+                            New Option Order
                         </button>
                     </div>
                 </div>
+                
+                <div id="ordersList" style="background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"></div>
+                <div id="ordersPagination" class="pagination-controls"></div>
             </div>
         </main>
     </div>
 
     <script src="/common.js"></script>
+    <script src="/orders.js"></script>
 </body>
 </html>

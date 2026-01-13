@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Positions - Botrade</title>
+    <link rel="stylesheet" href="/common.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h1>🤖 Botrade</h1>
+            <nav>
+                <a href="/dashboard.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="/portfolio.html" class="nav-item active">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                    Positions
+                </a>
+                <a href="/orders.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    Orders
+                </a>
+                <a href="/ai-order.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                    AI Order
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div>
+                    <span id="currentTime" style="color: #6b7280; font-size: 0.875rem;"></span>
+                </div>
+                <div class="status-badge" id="statusBadge">
+                    <span class="status-indicator"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content">
+                <h1 class="page-title">Positions</h1>
+                <p class="page-subtitle">Your current trading positions</p>
+                
+                <!-- Action Buttons -->
+                <div style="margin-bottom: 1.5rem;">
+                    <button class="btn btn-primary" onclick="openStockModal()">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        New Stock Order
+                    </button>
+                    <button class="btn btn-primary" onclick="openOptionModal()" style="background: #7c3aed; margin-left: 0.5rem;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        New Option Order
+                    </button>
+                </div>
+                
+                <input type="text" id="positionsSearch" placeholder="🔍 Search positions..." style="width: 100%; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem;" onkeyup="filterPositions()" />
+                
+                <div id="positionsList" style="background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"></div>
+                <div id="positionsPagination" class="pagination-controls"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Stock Order Modal -->
+    <div class="modal" id="stockModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>📈 Stock Order</h2>
+                <button class="close-btn" onclick="closeStockModal()">&times;</button>
+            </div>
+            <div id="stockAlert" class="hidden"></div>
+            <form id="stockForm" onsubmit="submitStockOrder(event)">
+                <div style="background: #f0fdf4; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Stock Details</h3>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Symbol *</label>
+                        <input type="text" id="stockSymbol" required placeholder="e.g., AAPL" style="text-transform: uppercase;" />
+                    </div>
+                </div>
+                <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Order Details</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Action *</label>
+                            <select id="stockAction" required>
+                                <option value="BUY">🟢 Buy</option>
+                                <option value="SELL">🔴 Sell</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Quantity *</label>
+                            <input type="number" id="stockQuantity" required min="1" value="1" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Order Type *</label>
+                            <select id="stockOrderType" onchange="toggleStockLimitPrice()">
+                                <option value="MKT">Market (MKT)</option>
+                                <option value="LMT">Limit (LMT)</option>
+                            </select>
+                        </div>
+                        <div class="form-group hidden" id="stockLimitPriceGroup" style="margin-bottom: 0;">
+                            <label>Limit Price *</label>
+                            <input type="number" id="stockLimitPrice" step="0.01" placeholder="0.00" />
+                        </div>
+                    </div>
+                </div>
+                <div style="background: #fef3c7; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">AI Confidence</h3>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Confidence Level (%)</label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <input type="range" id="stockConfidenceSlider" min="0" max="100" value="85" oninput="document.getElementById('stockConfidence').value = this.value; updateStockConfidenceColor(this.value)" style="flex: 1;" />
+                            <input type="number" id="stockConfidence" min="0" max="100" value="85" onchange="document.getElementById('stockConfidenceSlider').value = this.value" style="width: 70px; text-align: center;" />
+                        </div>
+                        <small style="color: #6b7280; font-size: 0.75rem;">Minimum 70% required for execution</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem;" id="stockSubmitBtn">
+                    Place Order
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Option Order Modal -->
+    <div class="modal" id="optionModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2>📊 Option Order</h2>
+                <button class="close-btn" onclick="closeOptionModal()">&times;</button>
+            </div>
+            <div id="optionAlert" class="hidden"></div>
+            <form id="optionForm" onsubmit="submitOptionOrder(event)">
+                <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Contract Details</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Symbol *</label>
+                            <input type="text" id="optionSymbol" required placeholder="e.g., AAPL" style="text-transform: uppercase;" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Option Type *</label>
+                            <select id="optionType" required>
+                                <option value="C">📈 Call</option>
+                                <option value="P">📉 Put</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Strike Price *</label>
+                            <input type="number" id="optionStrike" required step="0.01" placeholder="0.00" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Expiration Date *</label>
+                            <input type="date" id="optionExpiryDate" required onchange="updateExpiryFormat()" />
+                            <input type="hidden" id="optionExpiry" />
+                            <small style="color: #6b7280; font-size: 0.75rem;">Select expiration date</small>
+                        </div>
+                    </div>
+                </div>
+                <div style="background: #f0fdf4; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">Order Details</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Action *</label>
+                            <select id="optionAction" required>
+                                <option value="BUY">🟢 Buy to Open</option>
+                                <option value="SELL">🔴 Sell to Close</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Quantity (Contracts) *</label>
+                            <input type="number" id="optionQuantity" required min="1" value="1" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Order Type *</label>
+                            <select id="optionOrderType" onchange="toggleOptionLimitPrice()">
+                                <option value="LMT" selected>Limit (LMT)</option>
+                                <option value="MKT">Market (MKT)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="optionLimitPriceGroup" style="margin-bottom: 0;">
+                            <label>Limit Price (per contract) *</label>
+                            <input type="number" id="optionLimitPrice" step="0.01" placeholder="0.00" required />
+                        </div>
+                    </div>
+                </div>
+                <div style="background: #fef3c7; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.75rem;">AI Confidence</h3>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Confidence Level (%)</label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <input type="range" id="optionConfidenceSlider" min="0" max="100" value="85" oninput="document.getElementById('optionConfidence').value = this.value; updateConfidenceColor(this.value)" style="flex: 1;" />
+                            <input type="number" id="optionConfidence" min="0" max="100" value="85" onchange="document.getElementById('optionConfidenceSlider').value = this.value" style="width: 70px; text-align: center;" />
+                        </div>
+                        <small style="color: #6b7280; font-size: 0.75rem;">Minimum 70% required for execution</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; background: #7c3aed; padding: 1rem;" id="optionSubmitBtn">
+                    Place Option Order
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/common.js"></script>
+    <script src="/portfolio.js"></script>
+</body>
+</html>
