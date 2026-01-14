@@ -24,75 +24,91 @@ function calculateEnhancedMovingAverages(closes) {
     const ema9 = new EMA(9);
     const ema21 = new EMA(21);
     
-    // Feed data using Big.js for precision
+    // Feed data - use regular numbers for SMA (trading-signals has issues with Big.js for SMA)
+    // But still use Big.js for EMA for precision
     closes.forEach(close => {
-        const bigClose = new Big(close);
-        sma20.update(bigClose);
-        sma50.update(bigClose);
-        sma200.update(bigClose);
-        ema9.update(bigClose);
-        ema21.update(bigClose);
+        sma20.update(close); // Use regular number
+        sma50.update(close); // Use regular number
+        sma200.update(close); // Use regular number
+        ema9.update(new Big(close)); // EMA works fine with Big.js
+        ema21.update(new Big(close)); // EMA works fine with Big.js
     });
     
     // Get current values
     const currentPrice = parseFloat(closes[closes.length - 1]);
-    const lastSMA20 = parseFloat(sma20.getResult().toString());
-    const lastSMA50 = parseFloat(sma50.getResult().toString());
-    const lastSMA200 = parseFloat(sma200.getResult().toString());
-    const lastEMA9 = parseFloat(ema9.getResult().toString());
-    const lastEMA21 = parseFloat(ema21.getResult().toString());
+    
+    // Check if indicators are stable before getting results
+    // For SMA, getResult() returns a number directly now
+    const lastSMA20 = sma20.isStable ? parseFloat(sma20.getResult()) : null;
+    const lastSMA50 = sma50.isStable ? parseFloat(sma50.getResult()) : null;
+    const lastSMA200 = sma200.isStable ? parseFloat(sma200.getResult()) : null;
+    const lastEMA9 = ema9.isStable ? parseFloat(ema9.getResult().toString()) : null;
+    const lastEMA21 = ema21.isStable ? parseFloat(ema21.getResult().toString()) : null;
     
     // Determine trend strength
     let trend = 'MIXED';
     let trendStrength = 50;
     
-    if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50 && lastSMA50 > lastSMA200) {
-        trend = 'STRONG_BULLISH';
-        trendStrength = 90;
-    } else if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50) {
-        trend = 'BULLISH';
-        trendStrength = 75;
-    } else if (currentPrice > lastSMA20) {
-        trend = 'SLIGHTLY_BULLISH';
-        trendStrength = 60;
-    } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50 && lastSMA50 < lastSMA200) {
-        trend = 'STRONG_BEARISH';
-        trendStrength = 10;
-    } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50) {
-        trend = 'BEARISH';
-        trendStrength = 25;
-    } else if (currentPrice < lastSMA20) {
-        trend = 'SLIGHTLY_BEARISH';
-        trendStrength = 40;
+    if (lastSMA20 && lastSMA50 && lastSMA200) {
+        if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50 && lastSMA50 > lastSMA200) {
+            trend = 'STRONG_BULLISH';
+            trendStrength = 90;
+        } else if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50) {
+            trend = 'BULLISH';
+            trendStrength = 75;
+        } else if (currentPrice > lastSMA20) {
+            trend = 'SLIGHTLY_BULLISH';
+            trendStrength = 60;
+        } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50 && lastSMA50 < lastSMA200) {
+            trend = 'STRONG_BEARISH';
+            trendStrength = 10;
+        } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50) {
+            trend = 'BEARISH';
+            trendStrength = 25;
+        } else if (currentPrice < lastSMA20) {
+            trend = 'SLIGHTLY_BEARISH';
+            trendStrength = 40;
+        }
+    } else if (lastEMA9 && lastEMA21) {
+        // Fallback to EMA if SMA not available
+        if (currentPrice > lastEMA9 && lastEMA9 > lastEMA21) {
+            trend = 'BULLISH';
+            trendStrength = 70;
+        } else if (currentPrice < lastEMA9 && lastEMA9 < lastEMA21) {
+            trend = 'BEARISH';
+            trendStrength = 30;
+        }
     }
     
     // Check for golden/death cross
     let crossover = 'NONE';
-    const sma50Prev = new SMA(50);
-    const sma200Prev = new SMA(200);
-    
-    closes.slice(0, -1).forEach(close => {
-        sma50Prev.update(new Big(close));
-        sma200Prev.update(new Big(close));
-    });
-    
-    if (sma50Prev.isStable && sma200Prev.isStable) {
-        const prevSMA50 = parseFloat(sma50Prev.getResult().toString());
-        const prevSMA200 = parseFloat(sma200Prev.getResult().toString());
+    if (lastSMA50 && lastSMA200) {
+        const sma50Prev = new SMA(50);
+        const sma200Prev = new SMA(200);
         
-        if (lastSMA50 > lastSMA200 && prevSMA50 <= prevSMA200) {
-            crossover = 'GOLDEN_CROSS';
-        } else if (lastSMA50 < lastSMA200 && prevSMA50 >= prevSMA200) {
-            crossover = 'DEATH_CROSS';
+        closes.slice(0, -1).forEach(close => {
+            sma50Prev.update(close);
+            sma200Prev.update(close);
+        });
+        
+        if (sma50Prev.isStable && sma200Prev.isStable) {
+            const prevSMA50 = parseFloat(sma50Prev.getResult());
+            const prevSMA200 = parseFloat(sma200Prev.getResult());
+            
+            if (lastSMA50 > lastSMA200 && prevSMA50 <= prevSMA200) {
+                crossover = 'GOLDEN_CROSS';
+            } else if (lastSMA50 < lastSMA200 && prevSMA50 >= prevSMA200) {
+                crossover = 'DEATH_CROSS';
+            }
         }
     }
     
     return {
-        sma20: parseFloat(lastSMA20.toFixed(2)),
-        sma50: parseFloat(lastSMA50.toFixed(2)),
-        sma200: parseFloat(lastSMA200.toFixed(2)),
-        ema9: parseFloat(lastEMA9.toFixed(2)),
-        ema21: parseFloat(lastEMA21.toFixed(2)),
+        sma20: lastSMA20 ? parseFloat(lastSMA20.toFixed(2)) : null,
+        sma50: lastSMA50 ? parseFloat(lastSMA50.toFixed(2)) : null,
+        sma200: lastSMA200 ? parseFloat(lastSMA200.toFixed(2)) : null,
+        ema9: lastEMA9 ? parseFloat(lastEMA9.toFixed(2)) : null,
+        ema21: lastEMA21 ? parseFloat(lastEMA21.toFixed(2)) : null,
         trend,
         trendStrength,
         crossover,

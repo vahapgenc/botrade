@@ -62,7 +62,7 @@ router.get('/input/:ticker', async (req, res) => {
                     interpretation: technical.momentum?.rsi?.interpretation
                 },
                 macd: {
-                    value: technical.macd?.value,
+                    value: technical.macd?.macd,
                     signal: technical.macd?.signal,
                     histogram: technical.macd?.histogram,
                     crossover: technical.macd?.crossover
@@ -77,7 +77,8 @@ router.get('/input/:ticker', async (req, res) => {
                 movingAverages: {
                     sma20: technical.trend?.sma20,
                     sma50: technical.trend?.sma50,
-                    ema12: technical.trend?.ema12,
+                    ema9: technical.trend?.ema9,
+                    ema21: technical.trend?.ema21,
                     trend: technical.trend?.trend,
                     trendStrength: technical.trend?.trendStrength
                 },
@@ -87,7 +88,7 @@ router.get('/input/:ticker', async (req, res) => {
                     interpretation: technical.composite?.interpretation,
                     confidence: technical.composite?.confidence
                 },
-                summary: technical.summary
+                summary: technical.summary ? `${technical.summary.overall} - ${technical.summary.recommendation} (${technical.summary.confidence} confidence). ${technical.summary.keyFactors}` : null
             };
             result.status.technical = 'success';
         } catch (error) {

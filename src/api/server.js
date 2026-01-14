@@ -60,6 +60,14 @@ app.get('/ai-order.js', (req, res) => {
     res.sendFile(path.join(__dirname, '../web/ai-order.js'));
 });
 
+app.get('/ai-data.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../web/ai-data.html'));
+});
+
+app.get('/ai-data.js', (req, res) => {
+    res.sendFile(path.join(__dirname, '../web/ai-data.js'));
+});
+
 // Static files for dashboard
 app.use(express.static(path.join(__dirname, '../web')));
 
