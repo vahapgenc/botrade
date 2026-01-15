@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watchlists - BotRade</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .watchlist-container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+            height: calc(100vh - 60px);
+        }
+
+        .watchlist-sidebar {
+            background: var(--card-bg, #1e1e1e);
+            border-radius: 8px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .watchlist-main {
+            background: var(--card-bg, #1e1e1e);
+            border-radius: 8px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .watchlist-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .watchlist-item {
+            padding: 12px;
+            background: var(--bg-secondary, #2a2a2a);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .watchlist-item:hover {
+            background: var(--bg-hover, #3a3a3a);
+            transform: translateX(4px);
+        }
+
+        .watchlist-item.active {
+            background: var(--primary-color, #0066cc);
+            color: white;
+        }
+
+        .watchlist-info {
+            flex: 1;
+        }
+
+        .watchlist-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .watchlist-count {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+
+        .watchlist-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .watchlist-item:hover .watchlist-actions {
+            opacity: 1;
+        }
+
+        .btn-icon {
+            background: transparent;
+            border: none;
+            padding: 6px;
+            cursor: pointer;
+            border-radius: 4px;
+            color: currentColor;
+            transition: background 0.2s;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .watchlist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .stock-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .stock-table th {
+            text-align: left;
+            padding: 12px;
+            background: var(--bg-secondary, #2a2a2a);
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color, #444);
+        }
+
+        .stock-table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color, #333);
+        }
+
+        .stock-table tr:hover {
+            background: var(--bg-hover, #2a2a2a);
+        }
+
+        .stock-symbol {
+            font-weight: 600;
+            color: var(--primary-color, #0066cc);
+            cursor: help;
+        }
+
+        .price-positive {
+            color: #22c55e;
+        }
+
+        .price-negative {
+            color: #ef4444;
+        }
+
+        .ai-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .ai-buy {
+            background: #22c55e;
+            color: white;
+        }
+
+        .ai-sell {
+            background: #ef4444;
+            color: white;
+        }
+
+        .ai-hold {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .confidence-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .confidence-fill {
+            flex: 1;
+            height: 6px;
+            background: var(--bg-secondary, #2a2a2a);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .confidence-fill-inner {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e);
+            transition: width 0.3s;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card-bg, #1e1e1e);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-secondary, #2a2a2a);
+            border: 1px solid var(--border-color, #444);
+            border-radius: 6px;
+            color: inherit;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary-color, #0066cc);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover, #0052a3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary, #2a2a2a);
+            color: inherit;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover, #3a3a3a);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary, #888);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid var(--bg-secondary, #2a2a2a);
+            border-top: 4px solid var(--primary-color, #0066cc);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .tooltip {
+            position: relative;
+        }
+
+        .tooltip-text {
+            visibility: hidden;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 8px 12px;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .market-cap {
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Watchlists</h1>
+        <nav>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="portfolio.html">Portfolio</a>
+            <a href="watchlist.html" class="active">Watchlists</a>
+            <a href="orders.html">Orders</a>
+            <a href="ai-order.html">AI Trading</a>
+        </nav>
+    </div>
+
+    <div class="watchlist-container">
+        <!-- Sidebar -->
+        <div class="watchlist-sidebar">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>My Watchlists</h3>
+                <button class="btn-icon" onclick="showCreateWatchlistModal()" title="Create Watchlist">
+                    ➕
+                </button>
+            </div>
+            <div class="watchlist-list" id="watchlistList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="watchlist-main">
+            <div id="watchlistContent">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <h3>Select a watchlist to view stocks</h3>
+                    <p>Or create a new watchlist to get started</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Watchlist Modal -->
+    <div class="modal" id="watchlistModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Create Watchlist</h3>
+                <button class="btn-icon" onclick="closeModal('watchlistModal')">✖</button>
+            </div>
+            <form id="watchlistForm" onsubmit="saveWatchlist(event)">
+                <div class="form-group">
+                    <label for="watchlistName">Name *</label>
+                    <input type="text" id="watchlistName" required placeholder="e.g., Tech Stocks, Dividend Growth">
+                </div>
+                <div class="form-group">
+                    <label for="watchlistDescription">Description</label>
+                    <textarea id="watchlistDescription" placeholder="Optional description"></textarea>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('watchlistModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Stock Modal -->
+    <div class="modal" id="addStockModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Stock to Watchlist</h3>
+                <button class="btn-icon" onclick="closeModal('addStockModal')">✖</button>
+            </div>
+            <form id="addStockForm" onsubmit="addStock(event)">
+                <div class="form-group">
+                    <label for="stockTicker">Ticker Symbol *</label>
+                    <input type="text" id="stockTicker" required placeholder="e.g., AAPL" style="text-transform: uppercase;">
+                </div>
+                <div class="form-group">
+                    <label for="stockCompanyName">Company Name</label>
+                    <input type="text" id="stockCompanyName" placeholder="Will be fetched automatically if empty">
+                </div>
+                <div class="form-group">
+                    <label for="stockSector">Sector</label>
+                    <input type="text" id="stockSector" placeholder="Will be fetched automatically if empty">
+                </div>
+                <div class="form-group">
+                    <label for="stockNotes">Notes</label>
+                    <textarea id="stockNotes" placeholder="Optional notes"></textarea>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addStockModal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">Add Stock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="watchlist.js"></script>
+</body>
+</html>

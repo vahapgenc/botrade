@@ -205,3 +205,32 @@ model PerformanceMetrics {
 
   @@index([date])
 }
+
+// Watchlist Management
+model Watchlist {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  description        String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  stocks             WatchlistStock[]
+
+  @@index([name])
+}
+
+// Stocks in Watchlists
+model WatchlistStock {
+  id                 Int      @id @default(autoincrement())
+  watchlistId        Int
+  ticker             String
+  companyName        String?
+  sector             String?
+  addedAt            DateTime @default(now())
+  notes              String?  @db.Text
+  
+  watchlist          Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, ticker])
+  @@index([watchlistId])
+  @@index([ticker])
+}

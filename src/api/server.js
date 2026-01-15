@@ -42,6 +42,7 @@ app.use('/api/technical', require('./routes/technical'));
 app.use('/api/market', require('./routes/market'));
 app.use('/api/fundamental', require('./routes/fundamental'));
 app.use('/api/news', require('./routes/news'));
+app.use('/api/watchlist', require('./routes/watchlist'));
 
 // Dashboard routes - BEFORE 404 handler
 app.get('/', (req, res) => {
@@ -66,6 +67,14 @@ app.get('/ai-data.html', (req, res) => {
 
 app.get('/ai-data.js', (req, res) => {
     res.sendFile(path.join(__dirname, '../web/ai-data.js'));
+});
+
+app.get('/watchlist.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../web/watchlist.html'));
+});
+
+app.get('/watchlist.js', (req, res) => {
+    res.sendFile(path.join(__dirname, '../web/watchlist.js'));
 });
 
 // Static files for dashboard
