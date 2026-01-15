@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const prisma = require('../../database/prisma');
+const { prisma } = require('../../database/prisma');
 const logger = require('../../utils/logger');
 const dataFetcher = require('../../services/market/dataFetcher');
 const { analyzeStock } = require('../routes/ai');

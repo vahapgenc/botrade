@@ -3,108 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Watchlists - BotRade</title>
-    <link rel="stylesheet" href="common.css">
+    <title>Watchlists - Botrade</title>
+    <link rel="stylesheet" href="/common.css">
     <style>
-        .watchlist-container {
+        .search-box {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            background: white;
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            color: #9ca3af;
+        }
+
+        .watchlist-grid {
             display: grid;
-            grid-template-columns: 250px 1fr;
-            gap: 20px;
-            height: calc(100vh - 60px);
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
         }
 
-        .watchlist-sidebar {
-            background: var(--card-bg, #1e1e1e);
-            border-radius: 8px;
-            padding: 20px;
-            overflow-y: auto;
-        }
-
-        .watchlist-main {
-            background: var(--card-bg, #1e1e1e);
-            border-radius: 8px;
-            padding: 20px;
-            overflow-y: auto;
-        }
-
-        .watchlist-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .watchlist-item {
-            padding: 12px;
-            background: var(--bg-secondary, #2a2a2a);
-            border-radius: 6px;
+        .watchlist-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
             cursor: pointer;
             transition: all 0.2s;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            height: 100%;
+            min-height: 180px;
         }
 
-        .watchlist-item:hover {
-            background: var(--bg-hover, #3a3a3a);
-            transform: translateX(4px);
+        .watchlist-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        .watchlist-item.active {
-            background: var(--primary-color, #0066cc);
-            color: white;
+        .watchlist-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
         }
 
-        .watchlist-info {
+        .watchlist-emoji {
+            font-size: 2rem;
+            line-height: 1;
+        }
+
+        .watchlist-card-info {
             flex: 1;
         }
 
-        .watchlist-name {
+        .watchlist-card-title {
+            font-size: 1rem;
             font-weight: 600;
-            margin-bottom: 4px;
+            color: #1f2937;
+            margin-bottom: 0.25rem;
+            line-height: 1.4;
         }
 
-        .watchlist-count {
-            font-size: 0.85rem;
-            opacity: 0.7;
+        .watchlist-card-count {
+            font-size: 0.875rem;
+            color: #6b7280;
         }
 
-        .watchlist-actions {
+        .watchlist-card-description {
+            color: #9ca3af;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+            flex: 1;
+        }
+
+        .watchlist-card-actions {
             display: flex;
-            gap: 8px;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .watchlist-item:hover .watchlist-actions {
-            opacity: 1;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid #f3f4f6;
         }
 
         .btn-icon {
-            background: transparent;
+            background: #f3f4f6;
             border: none;
-            padding: 6px;
+            padding: 0.5rem 0.75rem;
             cursor: pointer;
-            border-radius: 4px;
-            color: currentColor;
-            transition: background 0.2s;
+            border-radius: 0.375rem;
+            color: #6b7280;
+            transition: all 0.2s;
+            font-size: 0.875rem;
         }
 
         .btn-icon:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: #e5e7eb;
+            color: #1f2937;
         }
 
-        .watchlist-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 10px;
-        }
 
         .stock-table {
             width: 100%;
@@ -245,51 +257,6 @@
             resize: vertical;
         }
 
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: var(--primary-color, #0066cc);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-hover, #0052a3);
-        }
-
-        .btn-secondary {
-            background: var(--bg-secondary, #2a2a2a);
-            color: inherit;
-        }
-
-        .btn-secondary:hover {
-            background: var(--bg-hover, #3a3a3a);
-        }
-
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-
-        .btn-success {
-            background: #22c55e;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #16a34a;
-        }
-
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -322,75 +289,111 @@
             100% { transform: rotate(360deg); }
         }
 
-        .tooltip {
-            position: relative;
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #667eea;
+            cursor: pointer;
+            margin-bottom: 1rem;
+            font-weight: 500;
         }
 
-        .tooltip-text {
-            visibility: hidden;
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            padding: 8px 12px;
-            border-radius: 6px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            white-space: nowrap;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .tooltip:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .market-cap {
-            font-family: 'Courier New', monospace;
+        .back-button:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>📊 Watchlists</h1>
-        <nav>
-            <a href="dashboard.html">Dashboard</a>
-            <a href="portfolio.html">Portfolio</a>
-            <a href="watchlist.html" class="active">Watchlists</a>
-            <a href="orders.html">Orders</a>
-            <a href="ai-order.html">AI Trading</a>
-        </nav>
-    </div>
-
-    <div class="watchlist-container">
+    <div class="container">
         <!-- Sidebar -->
-        <div class="watchlist-sidebar">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>My Watchlists</h3>
-                <button class="btn-icon" onclick="showCreateWatchlistModal()" title="Create Watchlist">
-                    ➕
-                </button>
-            </div>
-            <div class="watchlist-list" id="watchlistList">
-                <div class="loading">
-                    <div class="spinner"></div>
-                </div>
-            </div>
-        </div>
+        <aside class="sidebar">
+            <h1>🤖 Botrade</h1>
+            <nav>
+                <a href="/dashboard.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="/portfolio.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                    Positions
+                </a>
+                <a href="/watchlist.html" class="nav-item active">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                    </svg>
+                    Watchlists
+                </a>
+                <a href="/orders.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    Orders
+                </a>
+                <a href="/ai-order.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                    AI Order
+                </a>
+                <a href="/ai-data.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    AI Data
+                </a>
+            </nav>
+        </aside>
 
         <!-- Main Content -->
-        <div class="watchlist-main">
-            <div id="watchlistContent">
-                <div class="empty-state">
-                    <div class="empty-state-icon">📋</div>
-                    <h3>Select a watchlist to view stocks</h3>
-                    <p>Or create a new watchlist to get started</p>
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div>
+                    <span id="currentTime" style="color: #6b7280; font-size: 0.875rem;"></span>
+                </div>
+                <div class="status-badge" id="statusBadge">
+                    <span class="status-indicator"></span>
+                    <span id="statusText">Ready</span>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content">
+                <div id="watchlistsView">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                        <div>
+                            <h1 class="page-title">Watchlists</h1>
+                            <p class="page-subtitle">Organize and track your favorite stocks</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="showCreateWatchlistModal()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            New Watchlist
+                        </button>
+                    </div>
+
+                    <div id="watchlistGrid" class="watchlist-grid">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading watchlists...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="stocksView" style="display: none;">
+                    <div class="back-button" onclick="showWatchlists()">
+                        ← Back to Watchlists
+                    </div>
+                    <div id="stocksContent"></div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Create/Edit Watchlist Modal -->
