@@ -45,66 +45,114 @@ async function loadWatchlists() {
 }
 
 // Render watchlist grid
-function renderWatchlistGrid() {
+function renderWatchlistGrid(filteredList = null) {
     const grid = document.getElementById('watchlistGrid');
+    const listToRender = filteredList || watchlists;
     
-    if (watchlists.length === 0) {
-        grid.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">📋</div>
-                <h3>No Watchlists Yet</h3>
-                <p>Create your first watchlist to start tracking stocks</p>
-                <button class="btn btn-primary" onclick="showCreateWatchlistModal()" style="margin-top: 1rem;">
-                    Create Watchlist
-                </button>
-            </div>
-        `;
+    if (listToRender.length === 0) {
+        if (filteredList !== null) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔍</div>
+                    <h3>No Watchlists Found</h3>
+                    <p>Try a different search term</p>
+                </div>
+            `;
+        } else {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <h3>No Watchlists Yet</h3>
+                    <p>Create your first watchlist to start tracking stocks</p>
+                    <button class="btn btn-primary" onclick="showCreateWatchlistModal()" style="margin-top: 1rem;">
+                        Create Watchlist
+                    </button>
+                </div>
+            `;
+        }
         return;
     }
     
-    grid.innerHTML = watchlists.map(wl => {
+    grid.innerHTML = listToRender.map(wl => {
         const stockCount = wl._count?.stocks || 0;
         const description = wl.description || 'No description';
-        const gradient = getGradient(wl.id);
+        const emoji = getWatchlistEmoji(wl.name);
         
         return `
-            <div class="watchlist-card" onclick="loadWatchlistStocks(${wl.id})" style="cursor: pointer;">
-                <div class="watchlist-header" style="background: ${gradient};">
-                    <div class="watchlist-name">${escapeHtml(wl.name)}</div>
-                    <div class="watchlist-count">${stockCount} stock${stockCount !== 1 ? 's' : ''}</div>
-                </div>
-                <div class="watchlist-body">
-                    <p style="color: #888; margin-bottom: 1rem;">${escapeHtml(description)}</p>
-                    <div class="watchlist-actions">
-                        <button class="btn-icon" onclick="event.stopPropagation(); showAddStockModal(${wl.id})" title="Add Stock">
-                            ➕
-                        </button>
-                        <button class="btn-icon" onclick="event.stopPropagation(); editWatchlist(${wl.id})" title="Edit">
-                            ✏️
-                        </button>
-                        <button class="btn-icon" onclick="event.stopPropagation(); deleteWatchlist(${wl.id})" title="Delete">
-                            🗑️
-                        </button>
+            <div class="watchlist-card" onclick="loadWatchlistStocks(${wl.id})" title="${escapeHtml(description)}">
+                <div class="watchlist-card-header">
+                    <div class="watchlist-emoji">${emoji}</div>
+                    <div class="watchlist-card-info">
+                        <div class="watchlist-card-title">
+                            <span>${escapeHtml(wl.name)}</span>
+                            ${description && description !== 'No description' ? '<span class="tooltip-icon" title="' + escapeHtml(description) + '">ℹ️</span>' : ''}
+                        </div>
+                        <div class="watchlist-card-count">${stockCount} stock${stockCount !== 1 ? 's' : ''}</div>
                     </div>
+                </div>
+                <div class="watchlist-card-actions">
+                    <button class="btn-icon" onclick="event.stopPropagation(); showAddStockModal(${wl.id})" title="Add Stock">
+                        ➕
+                    </button>
+                    <button class="btn-icon" onclick="event.stopPropagation(); editWatchlist(${wl.id})" title="Edit">
+                        ✏️
+                    </button>
+                    <button class="btn-icon" onclick="event.stopPropagation(); deleteWatchlist(${wl.id})" title="Delete">
+                        🗑️
+                    </button>
                 </div>
             </div>
         `;
     }).join('');
 }
 
-// Get gradient for watchlist card
-function getGradient(id) {
-    const gradients = [
-        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-        'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-        'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
-        'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-        'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-    ];
-    return gradients[id % gradients.length];
+// Get emoji for watchlist based on name
+function getWatchlistEmoji(name) {
+    const lowerName = name.toLowerCase();
+    
+    // Health & Biotech
+    if (lowerName.includes('biotech') || lowerName.includes('health') || lowerName.includes('sağlık')) return '🧬';
+    
+    // Finance & Banking
+    if (lowerName.includes('finance') || lowerName.includes('finans') || lowerName.includes('bank')) return '💰';
+    
+    // Technology & IoT
+    if (lowerName.includes('quantum') || lowerName.includes('kuantum') || lowerName.includes('iot')) return '⚛️';
+    
+    // AR/VR/Metaverse
+    if (lowerName.includes('ar/vr') || lowerName.includes('metaverse') || lowerName.includes('gerçeklik')) return '🥽';
+    
+    // Space & Aerospace
+    if (lowerName.includes('space') || lowerName.includes('uzay') || lowerName.includes('aerospace')) return '🚀';
+    
+    // Battery & Energy
+    if (lowerName.includes('battery') || lowerName.includes('batarya') || lowerName.includes('energy')) return '🔋';
+    
+    // Falling/High Yield
+    if (lowerName.includes('falling') || lowerName.includes('angel') || lowerName.includes('yield')) return '📉';
+    
+    // Best Performing/Wings
+    if (lowerName.includes('best') || lowerName.includes('super') || lowerName.includes('wing') || lowerName.includes('top')) return '⭐';
+    
+    // Default
+    return '📊';
+}
+
+// Filter watchlists by search term
+function filterWatchlists(searchTerm) {
+    const term = searchTerm.toLowerCase().trim();
+    
+    if (!term) {
+        renderWatchlistGrid();
+        return;
+    }
+    
+    const filtered = watchlists.filter(wl => 
+        wl.name.toLowerCase().includes(term) || 
+        (wl.description && wl.description.toLowerCase().includes(term))
+    );
+    
+    renderWatchlistGrid(filtered);
 }
 
 // Load watchlist stocks
@@ -246,7 +294,7 @@ function renderStockRow(stock) {
                 </div>
             </td>
             <td>
-                <button class="btn-icon" onclick="removeStock(${currentWatchlistData.id}, '${stock.ticker}')" title="Remove">
+                <button class="btn-icon" onclick="removeStock(${currentWatchlistData.id}, ${stock.id})" title="Remove">
                     🗑️
                 </button>
             </td>
@@ -389,17 +437,20 @@ async function addStock(event) {
 }
 
 // Remove stock
-async function removeStock(watchlistId, ticker) {
-    if (!confirm(`Remove ${ticker} from this watchlist?`)) {
+async function removeStock(watchlistId, stockId) {
+    if (!confirm(`Remove this stock from the watchlist?`)) {
         return;
     }
     
     try {
-        const response = await fetch(`/api/watchlist/${watchlistId}/stocks/${ticker}`, {
+        const response = await fetch(`/api/watchlist/${watchlistId}/stocks/${stockId}`, {
             method: 'DELETE'
         });
         
-        if (!response.ok) throw new Error('Failed to remove stock');
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to remove stock');
+        }
         
         // Reload the watchlist
         await loadWatchlistStocks(watchlistId);
