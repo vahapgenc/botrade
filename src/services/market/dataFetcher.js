@@ -5,8 +5,9 @@ const { get: getCache, set: setCache } = require('../cache/cacheManager');
 // Multiple data sources for fallback strategy
 const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
-const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
+const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 const FMP_API_KEY = process.env.FMP_API_KEY;
+const YAHOO_FINANCE_BASE_URL = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 /**
  * Fetch from Alpha Vantage TIME_SERIES_DAILY (Primary)
@@ -260,9 +261,126 @@ async function getMultipleQuotes(tickers) {
     }
 }
 
+async function getStockQuote(ticker) {
+    try {
+        const cacheKey = `stock_quote:${ticker}`;
+        
+        // Check cache (1 minute for real-time data)
+        const cached = await getCache(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        
+        // Try Yahoo Finance first (free, no API key needed)
+        try {
+            const url = `${YAHOO_FINANCE_BASE_URL}/${ticker}`;
+            const response = await axios.get(url, {
+                params: {
+                    interval: '1d',
+                    range: '1d'
+                },
+                timeout: 5000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0'
+                }
+            });
+            
+            if (response.data && response.data.chart && response.data.chart.result && response.data.chart.result.length > 0) {
+                const data = response.data.chart.result[0];
+                const meta = data.meta;
+                const quote = data.indicators.quote[0];
+                
+                const currentPrice = meta.regularMarketPrice || quote.close[quote.close.length - 1];
+                const previousClose = meta.previousClose || meta.chartPreviousClose;
+                const change = currentPrice - previousClose;
+                const changePercent = (change / previousClose) * 100;
+                
+                const result = {
+                    ticker: meta.symbol,
+                    companyName: meta.longName || meta.shortName || ticker,
+                    price: parseFloat(currentPrice) || 0,
+                    change: parseFloat(change) || 0,
+                    changePercent: parseFloat(changePercent) || 0,
+                    volume: parseInt(quote.volume[quote.volume.length - 1]) || 0,
+                    marketCap: meta.marketCap || 0,
+                    sector: null, // Yahoo doesn't provide in chart API
+                    industry: null,
+                    dayHigh: parseFloat(meta.regularMarketDayHigh) || 0,
+                    dayLow: parseFloat(meta.regularMarketDayLow) || 0,
+                    yearHigh: parseFloat(meta.fiftyTwoWeekHigh) || 0,
+                    yearLow: parseFloat(meta.fiftyTwoWeekLow) || 0,
+                    pe: null,
+                    eps: null,
+                    previousClose: parseFloat(previousClose) || 0,
+                    timestamp: new Date()
+                };
+                
+                // Cache for 1 minute (60 seconds)
+                await setCache(cacheKey, result, 60);
+                logger.info(`✅ Yahoo Finance quote for ${ticker}: $${result.price}`);
+                
+                return result;
+            }
+        } catch (yahooError) {
+            logger.warn(`Yahoo Finance failed for ${ticker}: ${yahooError.message}`);
+        }
+        
+        // Fallback to FMP if Yahoo fails
+        if (FMP_API_KEY) {
+            const url = `${FMP_BASE_URL}/quote/${ticker}`;
+            const response = await axios.get(url, {
+                params: { 
+                    apikey: FMP_API_KEY 
+                },
+                timeout: 5000
+            });
+            
+            if (!response.data || response.data.length === 0) {
+                logger.warn(`No quote data for ${ticker} from FMP`);
+                return null;
+            }
+            
+            const quote = response.data[0];
+            const result = {
+                ticker: quote.symbol,
+                companyName: quote.name,
+                price: parseFloat(quote.price) || 0,
+                change: parseFloat(quote.change) || 0,
+                changePercent: parseFloat(quote.changesPercentage) || 0,
+                volume: parseInt(quote.volume) || 0,
+                marketCap: quote.marketCap || 0,
+                sector: quote.sector || null,
+                industry: quote.industry || null,
+                dayHigh: parseFloat(quote.dayHigh) || 0,
+                dayLow: parseFloat(quote.dayLow) || 0,
+                yearHigh: parseFloat(quote.yearHigh) || 0,
+                yearLow: parseFloat(quote.yearLow) || 0,
+                pe: parseFloat(quote.pe) || null,
+                eps: parseFloat(quote.eps) || null,
+                previousClose: parseFloat(quote.previousClose) || 0,
+                timestamp: quote.timestamp ? new Date(quote.timestamp * 1000) : new Date()
+            };
+            
+            // Cache for 1 minute (60 seconds)
+            await setCache(cacheKey, result, 60);
+            logger.info(`✅ FMP quote for ${ticker}: $${result.price}`);
+            
+            return result;
+        }
+        
+        logger.error(`No API available for ${ticker}`);
+        return null;
+        
+    } catch (error) {
+        logger.error(`Error fetching stock quote for ${ticker}:`, error.message);
+        return null;
+    }
+}
+
 module.exports = {
     getHistoricalData,
     extractPriceArrays,
     getCurrentPrice,
-    getMultipleQuotes
+    getMultipleQuotes,
+    getStockQuote
 };

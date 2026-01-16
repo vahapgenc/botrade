@@ -251,18 +251,17 @@ function renderStocks() {
 
 // Render stock row
 function renderStockRow(stock) {
-    const marketData = stock.marketData || {};
-    const aiAnalysis = stock.aiAnalysis || {};
-    
-    const price = marketData.price ? `$${marketData.price.toFixed(2)}` : 'N/A';
-    const change = marketData.change || 0;
-    const changePercent = marketData.changePercent || 0;
-    const marketCap = marketData.marketCap ? formatMarketCap(marketData.marketCap) : 'N/A';
+    // Use enriched data from API
+    const price = stock.currentPrice ? `$${stock.currentPrice.toFixed(2)}` : 'N/A';
+    const change = stock.priceChange || 0;
+    const changePercent = stock.priceChangePct || 0;
+    const marketCap = stock.marketCap ? formatMarketCap(stock.marketCap) : 'N/A';
     const changeClass = change >= 0 ? 'price-positive' : 'price-negative';
     const changeSign = change >= 0 ? '+' : '';
     
-    const recommendation = aiAnalysis.recommendation || 'N/A';
-    const confidence = aiAnalysis.confidence || 0;
+    // Get AI analysis data
+    const recommendation = stock.aiAnalysis?.decision || 'N/A';
+    const confidence = stock.aiAnalysis?.confidence || 0;
     
     let aiBadgeClass = 'ai-hold';
     if (recommendation === 'BUY') aiBadgeClass = 'ai-buy';
