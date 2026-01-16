@@ -43,7 +43,7 @@ services:
 
   # TWS Gateway (Interactive Brokers)
   tws-gateway:
-    image: ghcr.io/gnzsnz/ib-gateway:latest
+    image: ghcr.io/gnzsnz/ib-gateway:stable
     container_name: botrade-tws-gateway
     restart: unless-stopped
     environment:
@@ -55,6 +55,7 @@ services:
       IBC_TrustedIPs: "0.0.0.0/0"
       IBC_BypassOrderPrecautions: "yes"
       SOCAT_PORT: 4004
+      TWS_INSTALL_LOG: /tmp/tws-install.log
     ports:
       - "4001:4001"  # Live API
       - "4002:4002"  # Paper API
