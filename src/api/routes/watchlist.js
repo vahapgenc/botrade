@@ -246,15 +246,25 @@ router.post('/:id/stocks', async (req, res) => {
     // Fetch company info if not provided
     let finalCompanyName = companyName;
     let finalSector = sector;
+    let priceWhenAdded = null;
     
     if (!companyName || !sector) {
       try {
         const marketData = await dataFetcher.getStockQuote(tickerUpper);
         finalCompanyName = finalCompanyName || marketData?.companyName || tickerUpper;
         finalSector = finalSector || marketData?.sector || null;
+        priceWhenAdded = marketData?.price || null;
       } catch (error) {
         logger.warn(`Could not fetch company info for ${tickerUpper}:`, error.message);
         finalCompanyName = finalCompanyName || tickerUpper;
+      }
+    } else {
+      // Even if company name and sector are provided, fetch the current price
+      try {
+        const marketData = await dataFetcher.getStockQuote(tickerUpper);
+        priceWhenAdded = marketData?.price || null;
+      } catch (error) {
+        logger.warn(`Could not fetch price for ${tickerUpper}:`, error.message);
       }
     }
 
@@ -264,6 +274,7 @@ router.post('/:id/stocks', async (req, res) => {
         ticker: tickerUpper,
         companyName: finalCompanyName,
         sector: finalSector,
+        priceWhenAdded: priceWhenAdded,
         notes: notes?.trim() || null
       }
     });

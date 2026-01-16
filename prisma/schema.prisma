@@ -225,6 +225,7 @@ model WatchlistStock {
   ticker             String
   companyName        String?
   sector             String?
+  priceWhenAdded     Decimal? @db.Decimal(10, 2)
   addedAt            DateTime @default(now())
   notes              String?  @db.Text
   

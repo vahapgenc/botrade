@@ -234,6 +234,7 @@ function renderStocks() {
                         <th>Company Name</th>
                         <th>Price</th>
                         <th>Change</th>
+                        <th>Since Added</th>
                         <th>Market Cap</th>
                         <th>Sector</th>
                         <th>AI Analysis</th>
@@ -259,6 +260,21 @@ function renderStockRow(stock) {
     const changeClass = change >= 0 ? 'price-positive' : 'price-negative';
     const changeSign = change >= 0 ? '+' : '';
     
+    // Calculate change since added to watchlist
+    const priceWhenAdded = stock.priceWhenAdded ? parseFloat(stock.priceWhenAdded) : null;
+    const currentPrice = stock.currentPrice || 0;
+    let sinceAddedChange = 0;
+    let sinceAddedPercent = 0;
+    let sinceAddedClass = '';
+    let sinceAddedSign = '';
+    
+    if (priceWhenAdded && currentPrice) {
+        sinceAddedChange = currentPrice - priceWhenAdded;
+        sinceAddedPercent = (sinceAddedChange / priceWhenAdded) * 100;
+        sinceAddedClass = sinceAddedChange >= 0 ? 'price-positive' : 'price-negative';
+        sinceAddedSign = sinceAddedChange >= 0 ? '+' : '';
+    }
+    
     // Get AI analysis data
     const recommendation = stock.aiAnalysis?.decision || 'N/A';
     const confidence = stock.aiAnalysis?.confidence || 0;
@@ -278,6 +294,9 @@ function renderStockRow(stock) {
             <td>${price}</td>
             <td class="${changeClass}">
                 ${changeSign}${change.toFixed(2)} (${changeSign}${changePercent.toFixed(2)}%)
+            </td>
+            <td ${priceWhenAdded ? `class="${sinceAddedClass}" title="Added at $${priceWhenAdded.toFixed(2)}"` : ''}>
+                ${priceWhenAdded ? `${sinceAddedSign}${sinceAddedChange.toFixed(2)} (${sinceAddedSign}${sinceAddedPercent.toFixed(2)}%)` : 'N/A'}
             </td>
             <td class="market-cap">${marketCap}</td>
             <td>${escapeHtml(stock.sector || 'N/A')}</td>
