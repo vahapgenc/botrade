@@ -151,24 +151,49 @@ function displayAnalysis() {
         
         // RSI
         if (technicals.rsi) {
-            indicatorsGrid.innerHTML += createIndicatorCard('RSI', technicals.rsi.value.toFixed(2), getSignalClass(technicals.rsi.signal));
+            const val = technicals.rsi.value != null ? technicals.rsi.value.toFixed(2) : 'N/A';
+            indicatorsGrid.innerHTML += createIndicatorCard('RSI', val, getSignalClass(technicals.rsi.signal));
+        } else {
+            indicatorsGrid.innerHTML += createIndicatorCard('RSI', 'N/A', 'signal-neutral');
         }
         
         // MACD
         if (technicals.macd) {
-            indicatorsGrid.innerHTML += createIndicatorCard('MACD', technicals.macd.histogram.toFixed(2), getSignalClass(technicals.macd.signal));
+            const val = technicals.macd.histogram != null ? technicals.macd.histogram.toFixed(2) : 'N/A';
+            indicatorsGrid.innerHTML += createIndicatorCard('MACD', val, getSignalClass(technicals.macd.signal));
+        } else {
+             indicatorsGrid.innerHTML += createIndicatorCard('MACD', 'N/A', 'signal-neutral');
         }
         
         // Moving Averages
-        if (technicals.sma_50 && technicals.sma_200) {
-            const signal = technicals.sma_50.value > technicals.sma_200.value ? 'BULLISH' : 'BEARISH';
-            indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', `SMA50: $${technicals.sma_50.value.toFixed(2)}`, getSignalClass(signal));
+        // Check technicals.movingAverages first (structure from ai.js)
+        const ma = technicals.movingAverages || {};
+        const sma50 = ma.sma50;
+        const sma200 = ma.sma200;
+            
+        if (sma50 && sma200) {
+            const signal = sma50 > sma200 ? 'BULLISH' : 'BEARISH';
+            const val = sma50 != null ? `$${sma50.toFixed(2)}` : 'N/A';
+            indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', `SMA50: ${val}`, getSignalClass(signal));
+        } else {
+             // Fallback for old structure or missing data
+             if (technicals.sma_50 && technicals.sma_200) {
+                const signal = technicals.sma_50.value > technicals.sma_200.value ? 'BULLISH' : 'BEARISH';
+                indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', `SMA50: $${technicals.sma_50.value.toFixed(2)}`, getSignalClass(signal));
+             } else {
+                indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', 'N/A', 'signal-neutral');
+             }
         }
         
         // Bollinger Bands
         if (technicals.bollinger) {
-            indicatorsGrid.innerHTML += createIndicatorCard('Bollinger', `${technicals.bollinger.position}`, getSignalClass(technicals.bollinger.signal));
+            const position = technicals.bollinger.position || 'N/A';
+            indicatorsGrid.innerHTML += createIndicatorCard('Bollinger', `${position}`, getSignalClass(technicals.bollinger.signal));
+        } else {
+            indicatorsGrid.innerHTML += createIndicatorCard('Bollinger', 'N/A', 'signal-neutral');
         }
+    } else {
+        indicatorsGrid.innerHTML = '<div class="info-item">No technical analysis available</div>';
     }
     
     // Display Fundamentals
@@ -176,13 +201,15 @@ function displayAnalysis() {
         const fund = analysisData.fundamentals;
         
         fundamentalsGrid.innerHTML = `
-            ${fund.pe ? `<div class="info-item"><span class="info-label">P/E Ratio</span><span class="info-value">${fund.pe.toFixed(2)}</span></div>` : ''}
-            ${fund.eps ? `<div class="info-item"><span class="info-label">EPS</span><span class="info-value">$${fund.eps.toFixed(2)}</span></div>` : ''}
-            ${fund.epsGrowth ? `<div class="info-item"><span class="info-label">EPS Growth</span><span class="info-value">${(fund.epsGrowth * 100).toFixed(2)}%</span></div>` : ''}
-            ${fund.revenueGrowth ? `<div class="info-item"><span class="info-label">Revenue Growth</span><span class="info-value">${(fund.revenueGrowth * 100).toFixed(2)}%</span></div>` : ''}
-            ${fund.netMargin ? `<div class="info-item"><span class="info-label">Net Margin</span><span class="info-value">${(fund.netMargin * 100).toFixed(2)}%</span></div>` : ''}
-            ${fund.canSlimScore ? `<div class="info-item"><span class="info-label">CAN SLIM Score</span><span class="info-value">${fund.canSlimScore}/100</span></div>` : ''}
+            <div class="info-item"><span class="info-label">P/E Ratio</span><span class="info-value">${fund.pe != null ? fund.pe.toFixed(2) : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">EPS</span><span class="info-value">${fund.eps != null ? '$' + fund.eps.toFixed(2) : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">EPS Growth</span><span class="info-value">${fund.epsGrowth != null ? (fund.epsGrowth * 100).toFixed(2) + '%' : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">Revenue Growth</span><span class="info-value">${fund.revenueGrowth != null ? (fund.revenueGrowth * 100).toFixed(2) + '%' : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">Net Margin</span><span class="info-value">${fund.netMargin != null ? (fund.netMargin * 100).toFixed(2) + '%' : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">CAN SLIM Score</span><span class="info-value">${fund.canSlimScore != null ? fund.canSlimScore + '/100' : 'N/A'}</span></div>
         `;
+    } else {
+        fundamentalsGrid.innerHTML = '<div class="info-item">No fundamental analysis available</div>';
     }
     
     document.getElementById('step2Loading').classList.remove('active');

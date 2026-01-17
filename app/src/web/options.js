@@ -9,8 +9,8 @@ let currentPrice = null;
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', async () => {
-    // Load watchlists for dropdown
-    await loadWatchlists();
+    // Load watchlists for autocomplete
+    await loadWatchlistTickers();
     
     // Update time
     updateTime();
@@ -58,48 +58,101 @@ function updateTime() {
     });
 }
 
-// Load watchlists for dropdown
-async function loadWatchlists() {
+// Load watchlists for autocomplete
+let availableTickers = [];
+
+async function loadWatchlistTickers() {
     try {
         const response = await fetch('/api/watchlist');
         const data = await response.json();
         
         if (data.success && data.watchlists) {
-            const select = document.getElementById('watchlistSelect');
-            select.innerHTML = '<option value="">Choose a watchlist...</option>' +
-                data.watchlists.map(wl => 
-                    `<option value="${wl.id}">${wl.name} (${wl._count?.stocks || 0} stocks)</option>`
-                ).join('');
+            const uniqueTickers = new Set();
+            data.watchlists.forEach(wl => {
+                if (wl.stocks) {
+                    wl.stocks.forEach(stock => uniqueTickers.add(stock.ticker));
+                }
+            });
+            
+            availableTickers = Array.from(uniqueTickers).sort();
+            setupAutocomplete();
         }
     } catch (error) {
-        console.error('Error loading watchlists:', error);
+        console.error('Error loading watchlist tickers:', error);
     }
 }
 
-// Load stocks from selected watchlist
-async function loadWatchlistStocks(watchlistId) {
-    const stockSelect = document.getElementById('stockSelect');
+function setupAutocomplete() {
+    const input = document.getElementById('tickerInput');
+    const list = document.getElementById('autocomplete-list');
     
-    if (!watchlistId) {
-        stockSelect.disabled = true;
-        stockSelect.innerHTML = '<option value="">Select stock...</option>';
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/watchlist/${watchlistId}`);
-        const data = await response.json();
+    if (!input || !list) return;
+
+    // Input event for filtering
+    input.addEventListener('input', function() {
+        const val = this.value.toUpperCase();
+        closeAllLists();
         
-        if (data.success && data.watchlist.stocks) {
-            stockSelect.disabled = false;
-            stockSelect.innerHTML = '<option value="">Select stock...</option>' +
-                data.watchlist.stocks.map(stock => 
-                    `<option value="${stock.ticker}">${stock.ticker} - ${stock.companyName || 'Unknown'}</option>`
-                ).join('');
+        if (!val) { return false;}
+        
+        let matches = availableTickers.filter(t => t.startsWith(val));
+        
+        if (matches.length > 0) {
+            list.style.display = 'block';
+            matches.slice(0, 100).forEach(ticker => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.innerHTML = `<strong>${ticker.substr(0, val.length)}</strong>${ticker.substr(val.length)}`;
+                item.addEventListener('click', function() {
+                    input.value = ticker;
+                    closeAllLists();
+                    loadTickerFromInput(); // Auto-load on selection
+                });
+                list.appendChild(item);
+            });
         }
-    } catch (error) {
-        console.error('Error loading watchlist stocks:', error);
-        stockSelect.disabled = true;
+    });
+
+    // Focus event to show all tickers
+    input.addEventListener('focus', function() {
+        if (this.value === '') {
+            closeAllLists();
+            
+            if (availableTickers.length > 0) {
+                list.style.display = 'block';
+                availableTickers.slice(0, 100).forEach(ticker => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.textContent = ticker;
+                    item.addEventListener('click', function() {
+                        input.value = ticker;
+                        closeAllLists();
+                        loadTickerFromInput(); // Auto-load
+                    });
+                    list.appendChild(item);
+                });
+            }
+        }
+    });
+
+    // Handle Enter key
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            closeAllLists();
+            loadTickerFromInput();
+        }
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target !== input) {
+            closeAllLists();
+        }
+    });
+
+    function closeAllLists() {
+        list.innerHTML = '';
+        list.style.display = 'none';
     }
 }
 
@@ -114,14 +167,6 @@ async function loadTickerFromInput() {
     }
     
     await loadTicker(newTicker);
-}
-
-// Load ticker from watchlist selection
-async function loadTickerFromWatchlist(selectedTicker) {
-    if (!selectedTicker) return;
-    
-    document.getElementById('tickerInput').value = selectedTicker;
-    await loadTicker(selectedTicker);
 }
 
 // Main function to load a ticker

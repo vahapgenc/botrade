@@ -378,6 +378,49 @@
 
         .bid { color: #059669; }
         .ask { color: #dc2626; }
+    /* Custom Autocomplete */
+    .autocomplete-container {
+        position: relative;
+        flex-grow: 1;
+    }
+    
+    .autocomplete-items {
+        position: absolute;
+        border: 1px solid #d1d5db;
+        border-bottom: none;
+        border-top: none;
+        z-index: 99;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: white;
+        border-radius: 0 0 0.5rem 0.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .autocomplete-item {
+        padding: 10px;
+        cursor: pointer;
+        background-color: #fff;
+        border-bottom: 1px solid #d4d4d4;
+        font-size: 1.25rem;
+        color: #374151;
+    }
+    
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+    
+    .autocomplete-item:hover {
+        background-color: #e9e9e9;
+    }
+    
+    .autocomplete-active {
+        background-color: #2563eb !important; 
+        color: #ffffff; 
+    }
     </style>
 </head>
 <body>
@@ -449,49 +492,27 @@
                 <div style="background: white; border-radius: 1rem; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                     <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem;">Select Stock</h2>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <!-- Manual Ticker Input -->
-                        <div>
-                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Enter Ticker Symbol</label>
-                            <div style="display: flex; gap: 0.5rem;">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Enter Ticker Symbol or Select from Watchlist</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                             <div class="autocomplete-container">
                                 <input 
                                     type="text" 
                                     id="tickerInput" 
-                                    placeholder="e.g., AAPL, TSLA, MSFT" 
-                                    style="flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; text-transform: uppercase; font-size: 1rem;"
-                                    onkeypress="if(event.key==='Enter') loadTickerFromInput()"
+                                    placeholder="Search ticker..." 
+                                    style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; text-transform: uppercase; font-size: 1rem;"
+                                    autocomplete="off"
                                 />
-                                <button 
-                                    onclick="loadTickerFromInput()" 
-                                    style="padding: 0.75rem 1.5rem; background: #3b82f6; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s;"
-                                    onmouseover="this.style.background='#2563eb'"
-                                    onmouseout="this.style.background='#3b82f6'"
-                                >
-                                    Load
-                                </button>
+                                <div id="autocomplete-list" class="autocomplete-items" style="display: none;"></div>
                             </div>
-                        </div>
-
-                        <!-- Watchlist Selector -->
-                        <div>
-                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Or Select from Watchlist</label>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <select 
-                                    id="watchlistSelect" 
-                                    style="flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; background: white;"
-                                    onchange="loadWatchlistStocks(this.value)"
-                                >
-                                    <option value="">Choose a watchlist...</option>
-                                </select>
-                                <select 
-                                    id="stockSelect" 
-                                    style="flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; background: white;"
-                                    onchange="loadTickerFromWatchlist(this.value)"
-                                    disabled
-                                >
-                                    <option value="">Select stock...</option>
-                                </select>
-                            </div>
+                            <button 
+                                onclick="loadTickerFromInput()" 
+                                style="padding: 0.75rem 1.5rem; background: #3b82f6; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s;"
+                                onmouseover="this.style.background='#2563eb'"
+                                onmouseout="this.style.background='#3b82f6'"
+                            >
+                                Load
+                            </button>
                         </div>
                     </div>
                 </div>

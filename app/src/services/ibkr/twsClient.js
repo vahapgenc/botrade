@@ -805,6 +805,7 @@ class TWSClient extends EventEmitter {
             this.ib.on('tickSize', tickSizeHandler);
 
             // Request market data
+            this.ib.reqMarketDataType(3); // 3 = Delayed Data
             this.ib.reqMktData(reqId, contract, '', false, false, []);
 
             // Wait for data to arrive, then cancel and resolve
@@ -1291,6 +1292,7 @@ class TWSClient extends EventEmitter {
             this.ib.on('tickOptionComputation', tickOptionComputationHandler);
 
             // Request market data
+            this.ib.reqMarketDataType(3); // 3 = Delayed Data
             this.ib.reqMktData(reqId, contract, '', false, false, []);
 
             // Wait for data then resolve

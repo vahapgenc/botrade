@@ -173,6 +173,7 @@ function formatTechnicalData(technical) {
         movingAverages: {
             sma20: technical.trend?.sma20,
             sma50: technical.trend?.sma50,
+            sma200: technical.trend?.sma200,
             ema9: technical.trend?.ema9,
             ema21: technical.trend?.ema21,
             trend: technical.trend?.trend,
