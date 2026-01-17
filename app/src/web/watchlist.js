@@ -312,6 +312,9 @@ function renderStockRow(stock) {
                 </div>
             </td>
             <td>
+                <button class="btn-icon" onclick="window.open('/options.html?ticker=${stock.ticker}', '_blank')" title="Options Analysis">
+                    📊
+                </button>
                 <button class="btn-icon" onclick="removeStock(${currentWatchlistData.id}, ${stock.id})" title="Remove">
                     🗑️
                 </button>

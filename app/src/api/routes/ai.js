@@ -27,7 +27,7 @@ router.get('/input/:ticker', async (req, res) => {
         
         // 1. Market Data
         try {
-            const marketData = await getHistoricalData(ticker, 5);
+            const marketData = await getHistoricalData(ticker, 'daily', 5);
             if (marketData && marketData.length > 0) {
                 const latest = marketData[0];
                 result.data.market = {
@@ -51,7 +51,7 @@ router.get('/input/:ticker', async (req, res) => {
         
         // 2. Technical Indicators
         try {
-            const marketData = await getHistoricalData(ticker, 250);
+            const marketData = await getHistoricalData(ticker, 'daily', 250);
             const priceData = extractPriceArrays(marketData);
             const technical = await analyzeTechnicals(priceData);
             
@@ -103,27 +103,27 @@ router.get('/input/:ticker', async (req, res) => {
             const signal = await getSentimentSignal(ticker, { limit: 20 });
             
             result.data.news = {
-                source: news.source,
+                source: news.source || 'Unknown',
                 articlesCount: news.itemsReturned,
                 sentiment: {
-                    overall: news.sentiment.overall,
-                    score: news.sentiment.score,
-                    bullish: news.sentiment.bullish,
-                    bearish: news.sentiment.bearish,
-                    neutral: news.sentiment.neutral,
-                    distribution: news.sentiment.distribution
+                    overall: news.sentiment?.overall || 'Neutral',
+                    score: news.sentiment?.score || 0,
+                    bullish: news.sentiment?.bullish || 0,
+                    bearish: news.sentiment?.bearish || 0,
+                    neutral: news.sentiment?.neutral || 0,
+                    distribution: news.sentiment?.distribution || {}
                 },
                 tradingSignal: {
-                    signal: signal.signal,
-                    strength: signal.strength,
-                    recommendation: signal.recommendation
+                    signal: signal?.signal || 'HOLD',
+                    strength: signal?.strength || 'NEUTRAL',
+                    recommendation: signal?.recommendation || 'Insufficient data'
                 },
-                recentHeadlines: news.articles.slice(0, 3).map(a => ({
-                    title: a.title,
-                    sentiment: a.sentiment.label,
-                    score: a.sentiment.score,
-                    source: a.source,
-                    date: a.timePublished
+                recentHeadlines: (news.articles || []).slice(0, 3).map(a => ({
+                    title: a.title || 'No title',
+                    sentiment: a.sentiment?.label || 'Neutral',
+                    score: a.sentiment?.score || 0,
+                    source: a.source || 'Unknown',
+                    date: a.timePublished || a.publishedAt || new Date().toISOString()
                 }))
             };
             result.status.news = 'success';
@@ -229,7 +229,7 @@ router.get('/status', async (req, res) => {
         
         // Quick checks
         const checks = [
-            { name: 'market', test: () => getHistoricalData('AAPL', 1) },
+            { name: 'market', test: () => getHistoricalData('AAPL', 'daily', 1) },
             { name: 'news', test: () => getNewsForTicker('AAPL', { limit: 1 }) },
             { name: 'fundamental', test: () => getFundamentals('AAPL') },
             { name: 'fearGreed', test: () => fetchFearGreed() },

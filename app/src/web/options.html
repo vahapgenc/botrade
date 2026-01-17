@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Analysis - Botrade</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            padding: 2rem 1rem;
+        }
+
+        .sidebar h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            color: #2563eb;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.5rem;
+            color: #6b7280;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .nav-item.active {
+            background: #eff6ff;
+            color: #2563eb;
+            font-weight: 600;
+        }
+
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+            margin-right: 0.75rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+        }
+
+        .ticker-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .ticker-header h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 2rem;
+        }
+
+        .ticker-info {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .control-group label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .control-group select,
+        .control-group input {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .analyze-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: auto;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .option-chain {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .chain-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .chain-tab {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.2s;
+        }
+
+        .chain-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .option-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .option-table th {
+            background: #f9fafb;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .option-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .option-table tbody tr:hover {
+            background: #f9fafb;
+            cursor: pointer;
+        }
+
+        .strike-price {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .atm-strike {
+            background: #fef3c7 !important;
+        }
+
+        .itm {
+            color: #059669;
+        }
+
+        .otm {
+            color: #6b7280;
+        }
+
+        .greeks {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .greek-value {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .greek-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .strategies {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+        }
+
+        .strategy-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+        }
+
+        .strategy-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .strategy-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .strategy-name {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .strategy-score {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+        }
+
+        .score-excellent { color: #059669; }
+        .score-good { color: #0891b2; }
+        .score-fair { color: #f59e0b; }
+        .score-poor { color: #dc2626; }
+
+        .strategy-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .strategy-description {
+            color: #6b7280;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+        }
+
+        .bid-ask {
+            display: flex;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .bid { color: #059669; }
+        .ask { color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h1>🤖 Botrade</h1>
+            <nav>
+                <a href="/dashboard.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="/portfolio.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                    Positions
+                </a>
+                <a href="/watchlist.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                    </svg>
+                    Watchlists
+                </a>
+                <a href="/ai-order.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                    AI Order
+                </a>
+                <a href="/ai-data.html" class="nav-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    AI Data
+                </a>
+                <a href="/options.html" class="nav-item active">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+                    </svg>
+                    Options
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div>
+                    <span id="currentTime" style="color: #6b7280; font-size: 0.875rem;"></span>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content">
+                <h1 class="page-title">📊 Options Analysis</h1>
+                <p class="page-subtitle">Analyze option chains and get AI-powered strategy recommendations</p>
+
+                <div class="ticker-header">
+                    <h1 id="tickerSymbol">-</h1>
+            <div class="ticker-info">
+                <span id="currentPrice">Price: --</span>
+                <span id="priceChange">Change: --</span>
+                <span id="volume">Volume: --</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Expiration Date</label>
+                <select id="expirationSelect">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Strike Range</label>
+                <select id="strikeRange">
+                    <option value="5">± 5 strikes</option>
+                    <option value="10" selected>± 10 strikes</option>
+                    <option value="15">± 15 strikes</option>
+                    <option value="all">All strikes</option>
+                </select>
+            </div>
+            <button class="analyze-btn" id="analyzeBtn">
+                🔍 Analyze Best Strategies
+            </button>
+        </div>
+
+        <div id="loadingChain" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading option chain...</p>
+        </div>
+
+        <div id="errorMessage" class="error" style="display: none;"></div>
+
+        <div id="optionChain" class="option-chain" style="display: none;">
+            <div class="chain-tabs">
+                <div class="chain-tab active" data-type="calls">Calls</div>
+                <div class="chain-tab" data-type="puts">Puts</div>
+            </div>
+            <div id="chainContent"></div>
+        </div>
+
+        <div id="strategies" class="strategies" style="display: none;">
+            <h2 style="margin-bottom: 1rem;">Recommended Strategies</h2>
+            <div id="strategiesContent"></div>
+        </div>
+
+        <div id="noData" class="no-data" style="display: none;">
+            <p>No option chain data available. Options may not be available for this ticker or IBKR market data subscription is required.</p>
+        </div>
+                </div>
+
+                <div id="noData" class="no-data" style="display: none;">
+                    <p>No option chain data available. Options may not be available for this ticker or IBKR market data subscription is required.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Update time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+    </script>
+    <script src="/options.js"></script>
+</body>
+</html>

@@ -1,7 +1,29 @@
 const express = require('express');
 const router = express.Router();
 const { getHistoricalData, getCurrentPrice, getMultipleQuotes } = require('../../services/market/dataFetcher');
+const twsClient = require('../../services/ibkr/twsClient');
 const logger = require('../../utils/logger');
+
+// Search for stock symbols
+router.get('/search/:pattern', async (req, res) => {
+    try {
+        const { pattern } = req.params;
+        
+        logger.info(`Symbol search for: ${pattern}`);
+        
+        const results = await twsClient.searchSymbols(pattern);
+        
+        res.json({
+            pattern,
+            results,
+            count: results.length
+        });
+        
+    } catch (error) {
+        logger.error('Symbol search error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Get historical data
 router.get('/history/:ticker', async (req, res) => {

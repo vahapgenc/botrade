@@ -1,6 +1,7 @@
 const axios = require('axios');
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
+const twsClient = require('../ibkr/twsClient');
 
 // Multiple data sources for fallback strategy
 const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
@@ -10,7 +11,35 @@ const FMP_API_KEY = process.env.FMP_API_KEY;
 const YAHOO_FINANCE_BASE_URL = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 /**
- * Fetch from Alpha Vantage TIME_SERIES_DAILY (Primary)
+ * Fetch from Interactive Brokers TWS (Primary - Most Reliable)
+ */
+async function fetchFromIBKR(ticker, limit = 250) {
+    try {
+        logger.info(`[IBKR] Fetching ${limit} days of data for ${ticker}...`);
+        
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('IBKR request timeout')), 10000)
+        );
+        
+        const dataPromise = twsClient.getHistoricalData(ticker, limit, '1 day');
+        const data = await Promise.race([dataPromise, timeoutPromise]);
+        
+        if (!data || data.length === 0) {
+            throw new Error('No data returned from IBKR');
+        }
+
+        logger.info(`✅ IBKR returned ${data.length} candles for ${ticker}`);
+        return data;
+    } catch (error) {
+        // Don't crash on IBKR errors - just log and move to fallback
+        logger.warn(`IBKR fetch failed: ${error.message}`);
+        throw error;
+    }
+}
+
+/**
+ * Fetch from Alpha Vantage TIME_SERIES_DAILY
  */
 async function fetchFromAlphaVantage(ticker, limit = 250) {
     const params = {
@@ -101,10 +130,22 @@ async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
         let result = null;
         let source = null;
         
-        // Try 1: Alpha Vantage (primary)
-        if (ALPHA_VANTAGE_API_KEY) {
+        // Try 1: Interactive Brokers TWS (primary - most reliable, no API limits)
+        try {
+            logger.info(`[1/3] Trying IBKR for ${ticker}...`);
+            result = await fetchFromIBKR(ticker, limit);
+            if (result && result.length > 0) {
+                source = 'Interactive Brokers';
+                logger.info(`✅ IBKR returned ${result.length} candles`);
+            }
+        } catch (error) {
+            logger.warn(`⚠️  IBKR failed: ${error.message}`);
+        }
+        
+        // Try 2: Alpha Vantage (fallback)
+        if (!result && ALPHA_VANTAGE_API_KEY) {
             try {
-                logger.info(`[1/2] Trying Alpha Vantage for ${ticker}...`);
+                logger.info(`[2/3] Trying Alpha Vantage for ${ticker}...`);
                 result = await fetchFromAlphaVantage(ticker, limit);
                 if (result && result.length > 0) {
                     source = 'Alpha Vantage';
@@ -113,14 +154,14 @@ async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
             } catch (error) {
                 logger.warn(`⚠️  Alpha Vantage failed: ${error.message}`);
             }
-        } else {
+        } else if (!result) {
             logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
         }
         
-        // Try 2: FMP (fallback)
+        // Try 3: FMP (secondary fallback)
         if (!result && FMP_API_KEY) {
             try {
-                logger.info(`[2/2] Trying FMP for ${ticker}...`);
+                logger.info(`[3/3] Trying FMP for ${ticker}...`);
                 result = await fetchFromFMP(ticker, limit);
                 if (result && result.length > 0) {
                     source = 'FMP';
@@ -179,31 +220,66 @@ async function getCurrentPrice(ticker) {
             return cached;
         }
         
-        const url = `${FMP_BASE_URL}/quote`;
-        const response = await axios.get(url, {
-            params: { 
-                symbol: ticker,
-                apikey: FMP_API_KEY 
-            },
-            timeout: 5000
-        });
+        let result = null;
         
-        if (!response.data || response.data.length === 0) {
-            throw new Error(`No quote data for ${ticker}`);
+        // Try 1: IBKR (primary - real-time, most reliable)
+        try {
+            logger.info(`[IBKR] Fetching current price for ${ticker}...`);
+            const ibkrData = await twsClient.getMarketData(ticker);
+            result = {
+                ticker: ibkrData.ticker,
+                price: ibkrData.price,
+                change: ibkrData.change || 0,
+                changePercent: ibkrData.changePercent || 0,
+                volume: ibkrData.volume || 0,
+                dayHigh: ibkrData.dayHigh,
+                dayLow: ibkrData.dayLow,
+                previousClose: ibkrData.previousClose,
+                timestamp: new Date()
+            };
+            logger.info(`✅ IBKR returned current price: ${result.price}`);
+        } catch (error) {
+            logger.warn(`⚠️  IBKR current price failed: ${error.message}`);
         }
         
-        const quote = response.data[0];
-        const result = {
-            ticker: quote.symbol,
-            price: parseFloat(quote.price),
-            change: parseFloat(quote.change),
-            changePercent: parseFloat(quote.changesPercentage),
-            volume: parseInt(quote.volume),
-            dayHigh: parseFloat(quote.dayHigh),
-            dayLow: parseFloat(quote.dayLow),
-            previousClose: parseFloat(quote.previousClose),
-            timestamp: new Date(quote.timestamp * 1000)
-        };
+        // Try 2: FMP (fallback)
+        if (!result && FMP_API_KEY) {
+            try {
+                logger.info(`[FMP] Fetching current price for ${ticker}...`);
+                const url = `${FMP_BASE_URL}/quote`;
+                const response = await axios.get(url, {
+                    params: { 
+                        symbol: ticker,
+                        apikey: FMP_API_KEY 
+                    },
+                    timeout: 5000
+                });
+                
+                if (!response.data || response.data.length === 0) {
+                    throw new Error(`No quote data for ${ticker}`);
+                }
+                
+                const quote = response.data[0];
+                result = {
+                    ticker: quote.symbol,
+                    price: parseFloat(quote.price),
+                    change: parseFloat(quote.change),
+                    changePercent: parseFloat(quote.changesPercentage),
+                    volume: parseInt(quote.volume),
+                    dayHigh: parseFloat(quote.dayHigh),
+                    dayLow: parseFloat(quote.dayLow),
+                    previousClose: parseFloat(quote.previousClose),
+                    timestamp: new Date(quote.timestamp * 1000)
+                };
+                logger.info(`✅ FMP returned current price: ${result.price}`);
+            } catch (error) {
+                logger.warn(`⚠️  FMP current price failed: ${error.message}`);
+            }
+        }
+        
+        if (!result) {
+            throw new Error('All price sources failed');
+        }
         
         // Cache for 1 minute (60 seconds)
         await setCache(cacheKey, result, 60);

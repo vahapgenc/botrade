@@ -3,21 +3,63 @@ const axios = require('axios');
 const Parser = require('rss-parser');
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
+const twsClient = require('../ibkr/twsClient');
 
 // Multiple news sources for fallback strategy
-// 1. NewsAPI (Primary) - 100 requests/day
+// 1. IBKR TWS (Primary) - Most reliable, real-time, no limits
+// 2. NewsAPI (Secondary) - 100 requests/day
 const newsapi = process.env.NEWS_API_KEY ? new NewsAPI(process.env.NEWS_API_KEY) : null;
 
-// 2. Alpha Vantage (Fallback) - 25 requests/day for news
+// 3. Alpha Vantage (Fallback) - 25 requests/day for news
 const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 
-// 3. Google News RSS (Last resort) - No API key needed
+// 4. Google News RSS (Last resort) - No API key needed
 const rssParser = new Parser();
 
 /**
+ * Fetch news from Interactive Brokers TWS (Primary)
+ */
+async function fetchFromIBKR(ticker, options = {}) {
+    const { limit = 50 } = options;
+    
+    try {
+        logger.info(`[IBKR] Fetching news for ${ticker}...`);
+        const ibkrNews = await twsClient.getNewsArticles(ticker, { limit });
+        
+        if (!ibkrNews || ibkrNews.length === 0) {
+            return null;
+        }
+
+        // Convert IBKR format to standard format
+        const articles = ibkrNews.map(article => ({
+            title: article.headline,
+            description: article.headline,
+            url: null, // IBKR doesn't provide URLs in historical news
+            publishedAt: article.publishedAt,
+            source: {
+                name: article.providerCode || 'IBKR'
+            },
+            content: null
+        }));
+
+        logger.info(`✅ IBKR returned ${articles.length} news articles`);
+        
+        return {
+            ticker,
+            source: 'IBKR',
+            itemsReturned: articles.length,
+            articles
+        };
+    } catch (error) {
+        throw new Error(`IBKR news fetch failed: ${error.message}`);
+    }
+}
+
+/**
  * MAIN FUNCTION: Get news with fallback strategy
- * Tries NewsAPI → Alpha Vantage → Google News RSS
+ * Tries IBKR → NewsAPI → Alpha Vantage → Google News RSS
+ * Combines IBKR + NewsAPI for comprehensive coverage
  */
 async function getNewsForTicker(ticker, options = {}) {
     const { limit = 50, lookbackDays = 7 } = options;
@@ -32,17 +74,40 @@ async function getNewsForTicker(ticker, options = {}) {
     
     logger.info(`Fetching news for ${ticker} with fallback strategy...`);
     
-    let result = null;
-    let source = null;
+    let ibkrResult = null;
+    let otherResult = null;
+    let combinedArticles = [];
+    let sources = [];
     
-    // Try 1: NewsAPI (primary)
+    // Try 1: Interactive Brokers TWS (primary - most reliable, real-time)
+    try {
+        logger.info(`[1/4] Trying IBKR for ${ticker}...`);
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('IBKR news timeout')), 15000)
+        );
+        const ibkrPromise = fetchFromIBKR(ticker, { limit });
+        ibkrResult = await Promise.race([ibkrPromise, timeoutPromise]);
+        if (ibkrResult && ibkrResult.articles && ibkrResult.articles.length > 0) {
+            sources.push('IBKR');
+            combinedArticles.push(...ibkrResult.articles);
+            logger.info(`✅ IBKR returned ${ibkrResult.articles.length} articles`);
+        } else {
+            logger.warn(`⚠️  IBKR returned no articles for ${ticker}`);
+        }
+    } catch (error) {
+        logger.warn(`⚠️  IBKR failed: ${error.message}`);
+        // Continue to fallbacks - don't crash
+    }
+    
+    // Try 2: NewsAPI (secondary - good for detailed content and URLs)
     if (newsapi) {
         try {
-            logger.info(`[1/3] Trying NewsAPI for ${ticker}...`);
-            result = await fetchFromNewsAPI(ticker, lookbackDays);
-            if (result && result.articles && result.articles.length > 0) {
-                source = 'NewsAPI';
-                logger.info(`✅ NewsAPI returned ${result.articles.length} articles`);
+            logger.info(`[2/4] Trying NewsAPI for ${ticker}...`);
+            otherResult = await fetchFromNewsAPI(ticker, lookbackDays);
+            if (otherResult && otherResult.articles && otherResult.articles.length > 0) {
+                sources.push('NewsAPI');
+                combinedArticles.push(...otherResult.articles);
+                logger.info(`✅ NewsAPI returned ${otherResult.articles.length} articles`);
             } else {
                 logger.warn(`⚠️  NewsAPI returned no articles for ${ticker}`);
             }
@@ -53,32 +118,34 @@ async function getNewsForTicker(ticker, options = {}) {
         logger.info(`⚠️  NewsAPI not configured (NEWS_API_KEY missing)`);
     }
     
-    // Try 2: Alpha Vantage (fallback)
-    if (!result && ALPHA_VANTAGE_API_KEY) {
+    // Try 3: Alpha Vantage (third option)
+    if (combinedArticles.length === 0 && ALPHA_VANTAGE_API_KEY) {
         try {
-            logger.info(`[2/3] Trying Alpha Vantage for ${ticker}...`);
-            result = await fetchFromAlphaVantage(ticker, { limit });
-            if (result && result.articles && result.articles.length > 0) {
-                source = 'Alpha Vantage';
-                logger.info(`✅ Alpha Vantage returned ${result.articles.length} articles`);
+            logger.info(`[3/4] Trying Alpha Vantage for ${ticker}...`);
+            otherResult = await fetchFromAlphaVantage(ticker, { limit });
+            if (otherResult && otherResult.articles && otherResult.articles.length > 0) {
+                sources.push('Alpha Vantage');
+                combinedArticles.push(...otherResult.articles);
+                logger.info(`✅ Alpha Vantage returned ${otherResult.articles.length} articles`);
             } else {
                 logger.warn(`⚠️  Alpha Vantage returned no articles for ${ticker}`);
             }
         } catch (error) {
             logger.warn(`⚠️  Alpha Vantage failed: ${error.message}`);
         }
-    } else if (!result) {
+    } else if (combinedArticles.length === 0) {
         logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
     }
     
-    // Try 3: Google News RSS (last resort)
-    if (!result) {
+    // Try 4: Google News RSS (last resort)
+    if (combinedArticles.length === 0) {
         try {
-            logger.info(`[3/3] Trying Google News RSS for ${ticker}...`);
-            result = await fetchFromGoogleNews(ticker);
-            if (result && result.articles && result.articles.length > 0) {
-                source = 'Google News RSS';
-                logger.info(`✅ Google News returned ${result.articles.length} articles`);
+            logger.info(`[4/4] Trying Google News RSS for ${ticker}...`);
+            otherResult = await fetchFromGoogleNews(ticker);
+            if (otherResult && otherResult.articles && otherResult.articles.length > 0) {
+                sources.push('Google News RSS');
+                combinedArticles.push(...otherResult.articles);
+                logger.info(`✅ Google News returned ${otherResult.articles.length} articles`);
             } else {
                 logger.warn(`⚠️  Google News returned no articles for ${ticker}`);
             }
@@ -88,7 +155,7 @@ async function getNewsForTicker(ticker, options = {}) {
     }
     
     // If all sources failed
-    if (!result || !result.articles || result.articles.length === 0) {
+    if (combinedArticles.length === 0) {
         logger.error(`❌ All news sources failed for ${ticker}`);
         return {
             ticker,
@@ -100,9 +167,39 @@ async function getNewsForTicker(ticker, options = {}) {
             fetchedAt: new Date()
         };
     }
+
+    // Remove duplicates based on title similarity
+    const uniqueArticles = [];
+    const seenTitles = new Set();
     
-    result.source = source;
-    result.fetchedAt = new Date();
+    for (const article of combinedArticles) {
+        const normalizedTitle = article.title?.toLowerCase().trim();
+        if (normalizedTitle && !seenTitles.has(normalizedTitle)) {
+            seenTitles.add(normalizedTitle);
+            uniqueArticles.push(article);
+        }
+    }
+
+    // Sort by date (most recent first)
+    uniqueArticles.sort((a, b) => {
+        const dateA = new Date(a.publishedAt || 0);
+        const dateB = new Date(b.publishedAt || 0);
+        return dateB - dateA;
+    });
+
+    // Limit to requested amount
+    const limitedArticles = uniqueArticles.slice(0, limit);
+
+    logger.info(`News sources used: ${sources.join(' + ')} (${limitedArticles.length} unique articles after deduplication)`);
+    
+    const result = {
+        ticker,
+        source: sources.join(' + '),
+        itemsReturned: limitedArticles.length,
+        sentiment: { overall: 'Neutral', score: 0, totalArticles: 0 },
+        articles: limitedArticles,
+        fetchedAt: new Date()
+    };
     
     // Cache for 30 minutes (1800 seconds)
     await setCache(cacheKey, result, 1800);

@@ -1,6 +1,7 @@
 const axios = require('axios');
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
+const twsClient = require('../ibkr/twsClient');
 
 // Multiple data sources for fallback strategy
 const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
@@ -9,7 +10,80 @@ const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 const FMP_API_KEY = process.env.FMP_API_KEY;
 
 /**
- * Fetch from Alpha Vantage OVERVIEW (Primary)
+ * Fetch fundamental data from IBKR (Primary)
+ */
+async function fetchFromIBKR(ticker) {
+    try {
+        logger.info(`[IBKR] Fetching fundamental data for ${ticker}...`);
+        
+        // Get snapshot report (company overview and key metrics)
+        const snapshotData = await twsClient.getFundamentalData(ticker, 'ReportsFinSummary');
+        
+        // Get calendar data (earnings, dividends)
+        let calendar = { earnings: [], dividends: [], splits: [] };
+        try {
+            calendar = await twsClient.getCompanyCalendar(ticker);
+        } catch (err) {
+            logger.warn(`⚠️  Could not fetch calendar: ${err.message}`);
+        }
+        
+        // Parse the XML data (simplified - in production you'd use a proper XML parser)
+        const parsedData = parseIBKRFundamentals(snapshotData);
+        
+        return {
+            profile: parsedData.profile,
+            quote: parsedData.quote,
+            calendar: calendar,
+            source: 'IBKR'
+        };
+    } catch (error) {
+        throw new Error(`IBKR fundamentals fetch failed: ${error.message}`);
+    }
+}
+
+/**
+ * Parse IBKR fundamental XML data
+ */
+function parseIBKRFundamentals(xmlData) {
+    const result = {
+        profile: {
+            companyName: extractXMLValue(xmlData, 'CoName') || 'N/A',
+            sector: extractXMLValue(xmlData, 'Sector') || 'N/A',
+            industry: extractXMLValue(xmlData, 'Industry') || 'N/A',
+            description: extractXMLValue(xmlData, 'BusinessSummary') || 'N/A',
+            ceo: extractXMLValue(xmlData, 'CEO') || 'N/A',
+            website: extractXMLValue(xmlData, 'WebSite') || 'N/A',
+            fullTimeEmployees: parseInt(extractXMLValue(xmlData, 'Employees')) || 0
+        },
+        quote: {
+            price: parseFloat(extractXMLValue(xmlData, 'LastPrice')) || 0,
+            marketCap: parseFloat(extractXMLValue(xmlData, 'MktCap')) || 0,
+            volume: parseFloat(extractXMLValue(xmlData, 'Volume')) || 0,
+            avgVolume: parseFloat(extractXMLValue(xmlData, 'AvgVolume')) || 0,
+            pe: parseFloat(extractXMLValue(xmlData, 'PE')) || null,
+            eps: parseFloat(extractXMLValue(xmlData, 'EPS')) || null,
+            beta: parseFloat(extractXMLValue(xmlData, 'Beta')) || null,
+            dividendYield: parseFloat(extractXMLValue(xmlData, 'DivYield')) || null,
+            bookValue: parseFloat(extractXMLValue(xmlData, 'BookValue')) || null,
+            profitMargin: parseFloat(extractXMLValue(xmlData, 'ProfitMargin')) || null,
+            returnOnEquity: parseFloat(extractXMLValue(xmlData, 'ROE')) || null
+        }
+    };
+    
+    return result;
+}
+
+/**
+ * Extract value from XML string
+ */
+function extractXMLValue(xmlString, tagName) {
+    const regex = new RegExp(`<${tagName}>([^<]+)</${tagName}>`, 'i');
+    const match = xmlString.match(regex);
+    return match ? match[1].trim() : null;
+}
+
+/**
+ * Fetch from Alpha Vantage OVERVIEW
  */
 async function fetchFromAlphaVantage(ticker) {
     const params = {
@@ -113,29 +187,44 @@ async function getFundamentals(ticker) {
         let data = null;
         let source = null;
         
-        // Try 1: Alpha Vantage (primary)
-        if (ALPHA_VANTAGE_API_KEY) {
+        // Try 1: IBKR (primary - most comprehensive, includes calendar)
+        try {
+            logger.info(`[1/3] Trying IBKR for ${ticker}...`);
+            data = await fetchFromIBKR(ticker);
+            if (data && data.profile) {
+                source = 'IBKR';
+                logger.info(`✅ IBKR returned fundamental data with calendar events`);
+            }
+        } catch (error) {
+            logger.warn(`⚠️  IBKR failed: ${error.message}`);
+            // Continue to fallbacks
+        }
+        
+        // Try 2: Alpha Vantage (fallback)
+        if (!data && ALPHA_VANTAGE_API_KEY) {
             try {
-                logger.info(`[1/2] Trying Alpha Vantage for ${ticker}...`);
+                logger.info(`[2/3] Trying Alpha Vantage for ${ticker}...`);
                 data = await fetchFromAlphaVantage(ticker);
                 if (data && data.profile) {
                     source = 'Alpha Vantage';
+                    data.calendar = { earnings: [], dividends: [], splits: [] }; // No calendar from AV
                     logger.info(`✅ Alpha Vantage returned fundamental data`);
                 }
             } catch (error) {
                 logger.warn(`⚠️  Alpha Vantage failed: ${error.message}`);
             }
-        } else {
+        } else if (!data) {
             logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
         }
         
-        // Try 2: FMP (fallback)
+        // Try 3: FMP (secondary fallback)
         if (!data && FMP_API_KEY) {
             try {
-                logger.info(`[2/2] Trying FMP for ${ticker}...`);
+                logger.info(`[3/3] Trying FMP for ${ticker}...`);
                 data = await fetchFromFMP(ticker);
                 if (data && data.profile) {
                     source = 'FMP';
+                    data.calendar = { earnings: [], dividends: [], splits: [] }; // No calendar from FMP
                     logger.info(`✅ FMP returned fundamental data`);
                 }
             } catch (error) {
@@ -204,9 +293,12 @@ async function getFundamentals(ticker) {
                 marketCap: data.quote.marketCap || 0,
                 sharesOutstanding: data.quote.sharesOutstanding || 0
             },
+            calendar: data.calendar || { earnings: [], dividends: [], splits: [] },
             canSlim: canSlimScore,
             fetchedAt: new Date(),
-            note: 'Limited analysis using free API tier. Upgrade to paid plan for full fundamental data.'
+            note: source === 'IBKR' 
+                ? 'Comprehensive data from Interactive Brokers with calendar events' 
+                : 'Limited analysis using free API tier. Calendar data not available.'
         };
         
         // Cache for 6 hours (21600 seconds)
