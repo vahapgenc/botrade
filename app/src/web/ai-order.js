@@ -84,9 +84,14 @@ async function fetchStockInfo() {
     
     try {
         const response = await fetch(`/api/ai/input/${symbol}`);
+        
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        }
+
         const data = await response.json();
         
-        if (data.status.market === 'success') {
+        if (data && data.status && data.status.market === 'success' && data.data && data.data.market) {
             stockData = {
                 ticker: symbol,
                 ...data.data.market
@@ -115,11 +120,18 @@ async function fetchStockInfo() {
             displayAnalysis();
             
         } else {
-            alert('Failed to fetch stock data. Please try another symbol.');
+            console.error('API Response Data:', data);
+            let errorMsg = 'Market data unavailable or incomplete.';
+            if (data && data.data && data.data.market && data.data.market.error) {
+                errorMsg = data.data.market.error;
+            } else if (data && data.error) {
+                errorMsg = data.error;
+            }
+            alert(`Failed to fetch stock data for ${symbol}.\nReason: ${errorMsg}`);
         }
     } catch (error) {
         console.error('Error fetching stock info:', error);
-        alert('Error fetching stock information');
+        alert(`Error: ${error.message}`);
     } finally {
         document.getElementById('step1Loading').classList.remove('active');
     }

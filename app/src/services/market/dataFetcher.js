@@ -114,6 +114,65 @@ async function fetchFromFMP(ticker, limit = 250) {
         }));
 }
 
+/**
+ * Fetch from Yahoo Finance (Fallback - No API Key required usually)
+ */
+async function fetchFromYahooFinance(ticker, limit = 250) {
+    // Yahoo Finance requires a range, e.g., "1y", "5d", etc.
+    // 250 days is approx 1 year
+    const range = limit > 300 ? '2y' : '1y';
+    const interval = '1d';
+    
+    // Yahoo finance often requires a "crumb" and cookie now, but sometimes this simple endpoint works for historical
+    // If it fails with 401/403, we know it's blocked.
+    const url = `${YAHOO_FINANCE_BASE_URL}/${ticker}`;
+    const params = {
+        interval: interval,
+        range: range
+    };
+    
+    // We need to spoof a User-Agent to avoid immediate blocking
+    const response = await axios.get(url, { 
+        params, 
+        timeout: 5000,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+    });
+
+    if (!response.data || !response.data.chart || !response.data.chart.result || response.data.chart.result.length === 0) {
+        throw new Error('Invalid response from Yahoo Finance');
+    }
+
+    const result = response.data.chart.result[0];
+    const meta = result.meta;
+    const timestamps = result.timestamp;
+    const quote = result.indicators.quote[0];
+    
+    if (!timestamps || !quote) {
+        throw new Error('No price data in Yahoo Finance response');
+    }
+
+    // Combine into objects
+    const candles = timestamps.map((ts, i) => {
+        // Skip incomplete data
+        if (quote.close[i] === null) return null;
+        
+        return {
+            date: new Date(ts * 1000).toISOString().split('T')[0],
+            timestamp: ts * 1000,
+            open: quote.open[i],
+            high: quote.high[i],
+            low: quote.low[i],
+            close: quote.close[i],
+            volume: quote.volume[i] || 0
+        };
+    }).filter(c => c !== null);
+
+    // Sort descending (newest first) and limit
+    return candles.reverse().slice(0, limit);
+}
+
 async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
     try {
         const cacheKey = `market_data:${ticker}:${timeframe}:${limit}`;
@@ -129,55 +188,80 @@ async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
         
         let result = null;
         let source = null;
+        let errors = [];
         
         // Try 1: Interactive Brokers TWS (primary - most reliable, no API limits)
         try {
-            logger.info(`[1/3] Trying IBKR for ${ticker}...`);
+            logger.info(`[1/4] Trying IBKR for ${ticker}...`);
             result = await fetchFromIBKR(ticker, limit);
             if (result && result.length > 0) {
                 source = 'Interactive Brokers';
                 logger.info(`✅ IBKR returned ${result.length} candles`);
             }
         } catch (error) {
+            const msg = `IBKR: ${error.message}`;
             logger.warn(`⚠️  IBKR failed: ${error.message}`);
+            errors.push(msg);
         }
         
-        // Try 2: Alpha Vantage (fallback)
+        // Try 2: Yahoo Finance (Best Free Fallback)
+        if (!result) {
+            try {
+                logger.info(`[2/4] Trying Yahoo Finance for ${ticker}...`);
+                result = await fetchFromYahooFinance(ticker, limit);
+                if (result && result.length > 0) {
+                    source = 'Yahoo Finance';
+                    logger.info(`✅ Yahoo Finance returned ${result.length} candles`);
+                }
+            } catch (error) {
+                const msg = `Yahoo Finance: ${error.message}`;
+                logger.warn(`⚠️  Yahoo Finance failed: ${error.message}`);
+                errors.push(msg);
+            }
+        }
+        
+        // Try 3: Alpha Vantage (Fallback with API Key)
         if (!result && ALPHA_VANTAGE_API_KEY) {
             try {
-                logger.info(`[2/3] Trying Alpha Vantage for ${ticker}...`);
+                logger.info(`[3/4] Trying Alpha Vantage for ${ticker}...`);
                 result = await fetchFromAlphaVantage(ticker, limit);
                 if (result && result.length > 0) {
                     source = 'Alpha Vantage';
                     logger.info(`✅ Alpha Vantage returned ${result.length} candles`);
                 }
             } catch (error) {
+                const msg = `Alpha Vantage: ${error.message}`;
                 logger.warn(`⚠️  Alpha Vantage failed: ${error.message}`);
+                errors.push(msg);
             }
         } else if (!result) {
             logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
+            errors.push('Alpha Vantage: API Key missing');
         }
         
-        // Try 3: FMP (secondary fallback)
+        // Try 4: FMP (Last Resort)
         if (!result && FMP_API_KEY) {
             try {
-                logger.info(`[3/3] Trying FMP for ${ticker}...`);
+                logger.info(`[4/4] Trying FMP for ${ticker}...`);
                 result = await fetchFromFMP(ticker, limit);
                 if (result && result.length > 0) {
                     source = 'FMP';
                     logger.info(`✅ FMP returned ${result.length} candles`);
                 }
             } catch (error) {
+                const msg = `FMP: ${error.message}`;
                 logger.warn(`⚠️  FMP failed: ${error.message}`);
+                errors.push(msg);
             }
         } else if (!result) {
             logger.info(`⚠️  FMP not configured (FMP_API_KEY missing)`);
+            errors.push('FMP: API Key missing');
         }
         
         // If all sources failed
         if (!result || result.length === 0) {
             logger.error(`❌ All market data sources failed for ${ticker}`);
-            return [];
+            return { error: `All sources failed. Details: ${errors.join('; ')}` };
         }
         
         logger.info(`Market data source used: ${source}`);
@@ -190,7 +274,7 @@ async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
         
     } catch (error) {
         logger.error(`Market data fetch error for ${ticker}:`, error.message);
-        return [];
+        return { error: `Internal Error: ${error.message}` };
     }
 }
 

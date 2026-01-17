@@ -67,7 +67,7 @@ router.get('/input/:ticker', async (req, res) => {
         };
         
         // PROCESS 1 & 2: Market & Technicals
-        if (marketDataResult && !marketDataResult.error && Array.isArray(marketDataResult)) {
+        if (marketDataResult && !marketDataResult.error && Array.isArray(marketDataResult) && marketDataResult.length > 0) {
             // Market Data (Latest)
             const latest = marketDataResult[marketDataResult.length - 1]; 
             result.data.market = {
