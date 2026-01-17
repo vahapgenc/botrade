@@ -213,44 +213,73 @@ async function fetchNewsData() {
     document.getElementById('step3Loading').classList.add('active');
     document.getElementById('newsResults').style.display = 'none';
     
+    // Optimization: Use data fetched in Step 1 if available
+    if (analysisData && analysisData.news) {
+        console.log('Using pre-fetched news data');
+        renderNewsResults(analysisData.news);
+        document.getElementById('step3Loading').classList.remove('active');
+        document.getElementById('newsResults').style.display = 'block';
+        return;
+    }
+
     try {
         const symbol = stockData.ticker;
         const response = await fetch(`/api/ai/input/${symbol}`);
         const data = await response.json();
         
-        if (data.data.news) {
+        if (data.data && data.data.news) {
             newsData = data.data.news;
-            
-            // Display sentiment
-            document.getElementById('newsSentiment').textContent = newsData.sentiment || 'Neutral';
-            document.getElementById('sentimentScore').textContent = newsData.sentimentScore || '-';
-            document.getElementById('newsCount').textContent = newsData.articles ? newsData.articles.length : 0;
-            
-            // Display news list
-            const newsList = document.getElementById('newsList');
-            newsList.innerHTML = '';
-            
-            if (newsData.articles && newsData.articles.length > 0) {
-                newsData.articles.slice(0, 10).forEach(article => {
-                    newsList.innerHTML += `
-                        <div class="news-item">
-                            <a href="${article.url}" target="_blank" class="news-title">${article.title}</a>
-                            <div class="news-meta">
-                                ${article.source} • ${new Date(article.publishedAt).toLocaleDateString()}
-                            </div>
-                        </div>
-                    `;
-                });
-            } else {
-                newsList.innerHTML = '<p style="text-align: center; color: #6b7280;">No recent news found</p>';
+            // Update analysisData to cache this
+            if (analysisData) {
+                analysisData.news = newsData;
             }
-            
+            renderNewsResults(newsData);
+            document.getElementById('newsResults').style.display = 'block';
+        } else {
+            document.getElementById('newsList').innerHTML = '<p style="text-align: center; color: #6b7280;">No news data available</p>';
             document.getElementById('newsResults').style.display = 'block';
         }
     } catch (error) {
         console.error('Error fetching news:', error);
+        document.getElementById('newsList').innerHTML = '<p style="text-align: center; color: #dc2626;">Error loading news data</p>';
+        document.getElementById('newsResults').style.display = 'block';
     } finally {
         document.getElementById('step3Loading').classList.remove('active');
+    }
+}
+
+function renderNewsResults(data) {
+    if (!data) return;
+    
+    // Display sentiment
+    document.getElementById('newsSentiment').textContent = data.sentiment || 'Neutral';
+    document.getElementById('sentimentScore').textContent = data.sentimentScore ? data.sentimentScore.toFixed(2) : '0.00';
+    document.getElementById('newsCount').textContent = data.articles ? data.articles.length : 0;
+    
+    // Display news list
+    const newsList = document.getElementById('newsList');
+    newsList.innerHTML = '';
+    
+    if (data.articles && data.articles.length > 0) {
+        data.articles.slice(0, 50).forEach(article => {
+            // Check for valid title and url
+            if (!article.title) return;
+            
+            const source = article.source || 'Unknown Source';
+            const dateStr = article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() + ' ' + new Date(article.publishedAt).toLocaleTimeString() : '';
+            const url = article.url || '#';
+            
+            newsList.innerHTML += `
+                <div class="news-item" style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <a href="${url}" target="_blank" class="news-title" style="font-weight: 600; color: #2563eb; text-decoration: none; display: block; margin-bottom: 4px;">${article.title}</a>
+                    <div class="news-meta" style="font-size: 0.85rem; color: #6b7280;">
+                        ${source} • ${dateStr}
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        newsList.innerHTML = '<p style="text-align: center; color: #6b7280;">No recent news articles found</p>';
     }
 }
 
