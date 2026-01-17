@@ -439,7 +439,58 @@
                 <h1 class="page-title">📊 Options Analysis</h1>
                 <p class="page-subtitle">Analyze option chains and get AI-powered strategy recommendations</p>
 
-                <div class="ticker-header">
+                <!-- Search Section -->
+                <div style="background: white; border-radius: 1rem; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem;">Select Stock</h2>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <!-- Manual Ticker Input -->
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Enter Ticker Symbol</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input 
+                                    type="text" 
+                                    id="tickerInput" 
+                                    placeholder="e.g., AAPL, TSLA, MSFT" 
+                                    style="flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; text-transform: uppercase; font-size: 1rem;"
+                                    onkeypress="if(event.key==='Enter') loadTickerFromInput()"
+                                />
+                                <button 
+                                    onclick="loadTickerFromInput()" 
+                                    style="padding: 0.75rem 1.5rem; background: #3b82f6; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s;"
+                                    onmouseover="this.style.background='#2563eb'"
+                                    onmouseout="this.style.background='#3b82f6'"
+                                >
+                                    Load
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Watchlist Selector -->
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Or Select from Watchlist</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <select 
+                                    id="watchlistSelect" 
+                                    style="flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; background: white;"
+                                    onchange="loadWatchlistStocks(this.value)"
+                                >
+                                    <option value="">Choose a watchlist...</option>
+                                </select>
+                                <select 
+                                    id="stockSelect" 
+                                    style="flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; background: white;"
+                                    onchange="loadTickerFromWatchlist(this.value)"
+                                    disabled
+                                >
+                                    <option value="">Select stock...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ticker-header" id="tickerHeader" style="display: none;">
                     <h1 id="tickerSymbol">-</h1>
             <div class="ticker-info">
                 <span id="currentPrice">Price: --</span>

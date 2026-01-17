@@ -1058,8 +1058,10 @@ class TWSClient extends EventEmitter {
 
         return new Promise((resolve, reject) => {
             const reqId = Math.floor(Math.random() * 10000);
+            const contractReqId = reqId + 1;
+            let underlyingConId = null;
 
-            // Create stock contract
+            // Step 1: Get the underlying contract's conId
             const contract = {
                 symbol: ticker,
                 secType: 'STK',
@@ -1067,38 +1069,58 @@ class TWSClient extends EventEmitter {
                 currency: 'USD'
             };
 
-            // Set up listener for security definition
-            const securityDefinitionHandler = (id, contractDetails) => {
-                if (id === reqId) {
-                    // Don't remove listeners yet, wait for end
-                    // Store contract details for later use
-                }
-            };
-
-            const securityDefinitionEndHandler = (id) => {
-                if (id === reqId) {
-                    this.ib.removeListener('securityDefinitionOptionParameter', securityDefinitionHandler);
-                    this.ib.removeListener('securityDefinitionOptionParameterEnd', securityDefinitionEndHandler);
-                    this.ib.removeListener('error', errorHandler);
-                    
-                    // Now request actual option chain data
-                    requestOptionChainData(id);
-                }
-            };
-
             const optionChainData = {
                 expirations: new Set(),
                 strikes: new Set(),
                 multiplier: '',
                 exchange: '',
-                underlyingConId: 0
+                underlyingConId: 0,
+                tradingClass: ''
             };
 
-            const secDefOptParamHandler = (id, exchange, underlyingConId, tradingClass, multiplier, expirations, strikes) => {
+            // Handler for contract details (to get conId)
+            const contractDetailsHandler = (id, contractDetails) => {
+                if (id === contractReqId) {
+                    underlyingConId = contractDetails.contract.conId;
+                    logger.info(`Found ConId for ${ticker}: ${underlyingConId}`);
+                }
+            };
+
+            const contractDetailsEndHandler = (id) => {
+                if (id === contractReqId) {
+                    this.ib.removeListener('contractDetails', contractDetailsHandler);
+                    this.ib.removeListener('contractDetailsEnd', contractDetailsEndHandler);
+
+                    if (!underlyingConId) {
+                        this.ib.removeListener('error', errorHandler);
+                        reject(new Error(`Could not find contract for ${ticker}`));
+                        return;
+                    }
+
+                    // Step 2: Now request option parameters with the conId
+                    logger.info(`Fetching option parameters for ${ticker} (conId: ${underlyingConId})...`);
+                    
+                    try {
+                        // Use empty string for exchange to get all venues
+                        this.ib.reqSecDefOptParams(reqId, ticker, '', 'STK', underlyingConId);
+                    } catch (err) {
+                        this.ib.removeListener('securityDefinitionOptionParameter', secDefOptParamHandler);
+                        this.ib.removeListener('securityDefinitionOptionParameterEnd', secDefOptParamEndHandler);
+                        this.ib.removeListener('error', errorHandler);
+                        reject(new Error(`Failed to request option parameters: ${err.message}`));
+                    }
+                }
+            };
+
+            // Handler for option chain parameters
+            const secDefOptParamHandler = (id, exchange, returnedUnderlyingConId, tradingClass, multiplier, expirations, strikes) => {
                 if (id === reqId) {
+                    logger.info(`Received option params for ${tradingClass} on ${exchange}: ${expirations.length} expirations, ${strikes.length} strikes`);
+                    
                     optionChainData.exchange = exchange;
-                    optionChainData.underlyingConId = underlyingConId;
+                    optionChainData.underlyingConId = returnedUnderlyingConId;
                     optionChainData.multiplier = multiplier;
+                    optionChainData.tradingClass = tradingClass;
                     
                     expirations.forEach(exp => optionChainData.expirations.add(exp));
                     strikes.forEach(strike => optionChainData.strikes.add(strike));
@@ -1111,46 +1133,63 @@ class TWSClient extends EventEmitter {
                     this.ib.removeListener('securityDefinitionOptionParameterEnd', secDefOptParamEndHandler);
                     this.ib.removeListener('error', errorHandler);
 
+                    if (optionChainData.expirations.size === 0) {
+                        reject(new Error(`No option data found for ${ticker}`));
+                        return;
+                    }
+
                     // Convert sets to sorted arrays
                     const result = {
                         ticker,
                         exchange: optionChainData.exchange,
                         underlyingConId: optionChainData.underlyingConId,
                         multiplier: optionChainData.multiplier,
+                        tradingClass: optionChainData.tradingClass,
                         expirations: Array.from(optionChainData.expirations).sort(),
                         strikes: Array.from(optionChainData.strikes).sort((a, b) => a - b),
                         fetchedAt: new Date()
                     };
 
+                    logger.info(`✅ Option chain for ${ticker}: ${result.expirations.length} expirations, ${result.strikes.length} strikes`);
                     resolve(result);
                 }
             };
 
             const errorHandler = (err, code, id) => {
-                if (id === reqId) {
+                if (id === reqId || id === contractReqId) {
+                    this.ib.removeListener('contractDetails', contractDetailsHandler);
+                    this.ib.removeListener('contractDetailsEnd', contractDetailsEndHandler);
                     this.ib.removeListener('securityDefinitionOptionParameter', secDefOptParamHandler);
                     this.ib.removeListener('securityDefinitionOptionParameterEnd', secDefOptParamEndHandler);
                     this.ib.removeListener('error', errorHandler);
-                    reject(new Error(`IBKR Option Chain Error (${code}): ${err.message}`));
+                    reject(new Error(`IBKR Error (${code}): ${err.message || err}`));
                 }
             };
 
+            // Set up all listeners
+            this.ib.on('contractDetails', contractDetailsHandler);
+            this.ib.on('contractDetailsEnd', contractDetailsEndHandler);
             this.ib.on('securityDefinitionOptionParameter', secDefOptParamHandler);
             this.ib.on('securityDefinitionOptionParameterEnd', secDefOptParamEndHandler);
             this.ib.on('error', errorHandler);
 
-            // Request option parameters
+            // Start by requesting contract details to get conId
             try {
-                this.ib.reqSecDefOptParams(reqId, ticker, '', 'STK', contract.conId || 0);
+                logger.info(`Searching for ${ticker} contract details...`);
+                this.ib.reqContractDetails(contractReqId, contract);
             } catch (err) {
+                this.ib.removeListener('contractDetails', contractDetailsHandler);
+                this.ib.removeListener('contractDetailsEnd', contractDetailsEndHandler);
                 this.ib.removeListener('securityDefinitionOptionParameter', secDefOptParamHandler);
                 this.ib.removeListener('securityDefinitionOptionParameterEnd', secDefOptParamEndHandler);
                 this.ib.removeListener('error', errorHandler);
-                reject(new Error(`Failed to request option chain: ${err.message}`));
+                reject(new Error(`Failed to request contract details: ${err.message}`));
             }
 
-            // Timeout after 15 seconds
+            // Timeout after 20 seconds (need more time for two-step process)
             setTimeout(() => {
+                this.ib.removeListener('contractDetails', contractDetailsHandler);
+                this.ib.removeListener('contractDetailsEnd', contractDetailsEndHandler);
                 this.ib.removeListener('securityDefinitionOptionParameter', secDefOptParamHandler);
                 this.ib.removeListener('securityDefinitionOptionParameterEnd', secDefOptParamEndHandler);
                 this.ib.removeListener('error', errorHandler);
@@ -1162,14 +1201,15 @@ class TWSClient extends EventEmitter {
                         exchange: optionChainData.exchange,
                         underlyingConId: optionChainData.underlyingConId,
                         multiplier: optionChainData.multiplier,
+                        tradingClass: optionChainData.tradingClass,
                         expirations: Array.from(optionChainData.expirations).sort(),
                         strikes: Array.from(optionChainData.strikes).sort((a, b) => a - b),
                         fetchedAt: new Date()
                     });
                 } else {
-                    reject(new Error('Option chain request timeout'));
+                    reject(new Error(`Option chain request timeout for ${ticker}`));
                 }
-            }, 15000);
+            }, 20000);
         });
     }
 

@@ -14,7 +14,15 @@ router.get('/chain/:ticker', async (req, res) => {
         
         logger.info(`Option chain request for ${ticker}`);
         
-        const optionChain = await twsClient.getOptionChain(ticker, exchange);
+        // Add timeout wrapper
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Option chain request timeout')), 25000)
+        );
+        
+        const optionChain = await Promise.race([
+            twsClient.getOptionChain(ticker, exchange),
+            timeoutPromise
+        ]);
         
         res.json(optionChain);
         

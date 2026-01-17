@@ -1,6 +1,6 @@
 // Get ticker from URL parameter
 const urlParams = new URLSearchParams(window.location.search);
-const ticker = urlParams.get('ticker')?.toUpperCase() || 'AAPL';
+let ticker = urlParams.get('ticker')?.toUpperCase() || null;
 
 let optionChainData = null;
 let currentExpiration = null;
@@ -9,9 +9,18 @@ let currentPrice = null;
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', async () => {
-    document.getElementById('tickerSymbol').textContent = ticker;
-    await loadCurrentPrice();
-    await loadOptionChain();
+    // Load watchlists for dropdown
+    await loadWatchlists();
+    
+    // Update time
+    updateTime();
+    setInterval(updateTime, 1000);
+    
+    // If ticker provided in URL, load it
+    if (ticker) {
+        document.getElementById('tickerInput').value = ticker;
+        await loadTicker(ticker);
+    }
     
     // Set up event listeners
     document.getElementById('expirationSelect').addEventListener('change', (e) => {
@@ -35,8 +44,108 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('analyzeBtn').addEventListener('click', analyzeStrategies);
 });
 
+// Update time display
+function updateTime() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent = now.toLocaleString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+// Load watchlists for dropdown
+async function loadWatchlists() {
+    try {
+        const response = await fetch('/api/watchlist');
+        const data = await response.json();
+        
+        if (data.success && data.watchlists) {
+            const select = document.getElementById('watchlistSelect');
+            select.innerHTML = '<option value="">Choose a watchlist...</option>' +
+                data.watchlists.map(wl => 
+                    `<option value="${wl.id}">${wl.name} (${wl._count?.stocks || 0} stocks)</option>`
+                ).join('');
+        }
+    } catch (error) {
+        console.error('Error loading watchlists:', error);
+    }
+}
+
+// Load stocks from selected watchlist
+async function loadWatchlistStocks(watchlistId) {
+    const stockSelect = document.getElementById('stockSelect');
+    
+    if (!watchlistId) {
+        stockSelect.disabled = true;
+        stockSelect.innerHTML = '<option value="">Select stock...</option>';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/watchlist/${watchlistId}`);
+        const data = await response.json();
+        
+        if (data.success && data.watchlist.stocks) {
+            stockSelect.disabled = false;
+            stockSelect.innerHTML = '<option value="">Select stock...</option>' +
+                data.watchlist.stocks.map(stock => 
+                    `<option value="${stock.ticker}">${stock.ticker} - ${stock.companyName || 'Unknown'}</option>`
+                ).join('');
+        }
+    } catch (error) {
+        console.error('Error loading watchlist stocks:', error);
+        stockSelect.disabled = true;
+    }
+}
+
+// Load ticker from manual input
+async function loadTickerFromInput() {
+    const input = document.getElementById('tickerInput');
+    const newTicker = input.value.trim().toUpperCase();
+    
+    if (!newTicker) {
+        alert('Please enter a ticker symbol');
+        return;
+    }
+    
+    await loadTicker(newTicker);
+}
+
+// Load ticker from watchlist selection
+async function loadTickerFromWatchlist(selectedTicker) {
+    if (!selectedTicker) return;
+    
+    document.getElementById('tickerInput').value = selectedTicker;
+    await loadTicker(selectedTicker);
+}
+
+// Main function to load a ticker
+async function loadTicker(newTicker) {
+    ticker = newTicker.toUpperCase();
+    
+    // Show ticker header
+    document.getElementById('tickerHeader').style.display = 'block';
+    document.getElementById('tickerSymbol').textContent = ticker;
+    
+    // Update URL without reload
+    const url = new URL(window.location);
+    url.searchParams.set('ticker', ticker);
+    window.history.pushState({}, '', url);
+    
+    // Load data
+    await loadCurrentPrice();
+    await loadOptionChain();
+}
+
 // Load current stock price
 async function loadCurrentPrice() {
+    if (!ticker) return;
+    
     try {
         // Try backend API first
         const response = await fetch(`/api/market/quote/${ticker}`);
@@ -97,6 +206,8 @@ async function loadCurrentPrice() {
 
 // Load option chain from API
 async function loadOptionChain() {
+    if (!ticker) return;
+    
     const loadingEl = document.getElementById('loadingChain');
     const errorEl = document.getElementById('errorMessage');
     const chainEl = document.getElementById('optionChain');
