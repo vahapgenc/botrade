@@ -32,16 +32,29 @@ async function fetchFromIBKR(ticker, options = {}) {
         }
 
         // Convert IBKR format to standard format
-        const articles = ibkrNews.map(article => ({
-            title: article.headline,
-            description: article.headline,
-            url: null, // IBKR doesn't provide URLs in historical news
-            publishedAt: article.publishedAt,
-            source: {
-                name: article.providerCode || 'IBKR'
-            },
-            content: null
-        }));
+        const articles = ibkrNews.map(article => {
+            // Apply sentiment analysis locally since IBKR just gives us text
+            const sentimentResult = analyzeSentiment(article.headline, article.headline);
+            
+            return {
+                title: article.headline,
+                description: article.headline,
+                url: null, // IBKR doesn't provide URLs in historical news
+                publishedAt: article.publishedAt,
+                source: {
+                    name: article.providerCode || 'IBKR'
+                },
+                content: null,
+                // Add unified sentiment properties so aggregators work
+                sentiment: {
+                    label: sentimentResult.label,
+                    score: (sentimentResult.score - 50) / 50 // Convert 0-100 to -1 to 1
+                },
+                // Add AlphaVantage-style properties so calculateOverallSentiment works without changes
+                overall_sentiment_score: (sentimentResult.score - 50) / 50,
+                overall_sentiment_label: sentimentResult.label
+            };
+        });
 
         logger.info(`✅ IBKR returned ${articles.length} news articles`);
         
@@ -190,13 +203,16 @@ async function getNewsForTicker(ticker, options = {}) {
     // Limit to requested amount
     const limitedArticles = uniqueArticles.slice(0, limit);
 
-    logger.info(`News sources used: ${sources.join(' + ')} (${limitedArticles.length} unique articles after deduplication)`);
+    logger.info(`News sources used: ${sources.join(' + ')} (${limitedArticles.length} unique articles afrer deduplication)`);
+    
+    // Calculate aggregate sentiment from all sources
+    const aggregatedSentiment = calculateOverallSentiment(limitedArticles);
     
     const result = {
         ticker,
         source: sources.join(' + '),
         itemsReturned: limitedArticles.length,
-        sentiment: { overall: 'Neutral', score: 0, totalArticles: 0 },
+        sentiment: aggregatedSentiment,
         articles: limitedArticles,
         fetchedAt: new Date()
     };
@@ -662,12 +678,23 @@ function calculateOverallSentiment(articles) {
     let neutralCount = 0;
     
     articles.forEach(article => {
-        const score = parseFloat(article.overall_sentiment_score || 0);
+        // Handle multiple formats (AlphaVantage vs Internal)
+        let score = 0;
+        let label = '';
+        
+        if (article.overall_sentiment_score !== undefined) {
+             score = parseFloat(article.overall_sentiment_score);
+             label = article.overall_sentiment_label || '';
+        } else if (article.sentiment && article.sentiment.score !== undefined) {
+             score = parseFloat(article.sentiment.score);
+             label = article.sentiment.label || '';
+        }
+        
         totalScore += score;
         
-        if (article.overall_sentiment_label.includes('Bullish') || score > 0.15) {
+        if (label.includes('Bullish') || label === 'VERY_POSITIVE' || label === 'POSITIVE' || score > 0.15) {
             bullishCount++;
-        } else if (article.overall_sentiment_label.includes('Bearish') || score < -0.15) {
+        } else if (label.includes('Bearish') || label === 'VERY_NEGATIVE' || label === 'NEGATIVE' || score < -0.15) {
             bearishCount++;
         } else {
             neutralCount++;

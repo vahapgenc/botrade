@@ -1,4 +1,5 @@
-require('dotenv').config();
+// require('dotenv').config();
+// Using docker environment variables instead of .env file inside container
 
 module.exports = {
     // API Keys

@@ -39,18 +39,47 @@ const consoleFormat = winston.format.combine(
     })
 );
 
+// In-memory log buffer for frontend display
+const logBuffer = [];
+const MAX_LOG_BUFFER = 100;
+
+// Custom Transport to capture logs in memory
+class MemoryTransport extends winston.Transport {
+    log(info, callback) {
+        setImmediate(() => {
+            this.emit('logged', info);
+        });
+
+        // Store log with timestamp
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            level: info.level,
+            message: info.message,
+            meta: info
+        };
+
+        logBuffer.push(logEntry);
+        if (logBuffer.length > MAX_LOG_BUFFER) {
+            logBuffer.shift(); // Remove oldest
+        }
+
+        callback();
+    }
+}
+
 // Create transports
 const transports = [];
 
-// Console transport (always active in development)
-if (process.env.NODE_ENV === 'development') {
-    transports.push(
-        new winston.transports.Console({
-            format: consoleFormat,
-            level: 'debug'
-        })
-    );
-}
+// Memory Transport for Web UI
+transports.push(new MemoryTransport());
+
+// Console transport (Always active for Docker visibility)
+transports.push(
+    new winston.transports.Console({
+        format: consoleFormat,
+        level: process.env.LOG_LEVEL || 'info'
+    })
+);
 
 // File transport for errors (with rotation)
 transports.push(
@@ -125,5 +154,10 @@ logger.rejections.handle(
         filename: path.join('logs', 'rejections.log') 
     })
 );
+
+// Method to get recent logs
+logger.getRecentLogs = () => {
+    return [...logBuffer]; // Return copy
+};
 
 module.exports = logger;

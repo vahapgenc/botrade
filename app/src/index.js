@@ -1,8 +1,16 @@
+console.log('Starting index.js...');
 const config = require('../config/settings');
 const logger = require('./utils/logger');
+console.log('Logger initialized');
+console.log('Requiring database...');
 const { testConnection, disconnect: disconnectDb } = require('./database/prisma');
+console.log('Requiring cache...');
 const { initCache, disconnect: disconnectCache } = require('./services/cache/cacheManager');
+console.log('Requiring server...');
 const { startServer } = require('./api/server');
+console.log('Requiring bot...');
+const bot = require('./bot');
+console.log('Imports done. Starting initialize()...');
 
 async function initialize() {
     logger.info('🚀 Trading Bot Initializing...');
@@ -30,6 +38,9 @@ async function initialize() {
     
     // Start Express server
     startServer();
+
+    // Start Trading Bot Scheduler
+    bot.start();
     
     logger.info('✅ All systems initialized');
     logger.info('✅ STEP 7 COMPLETE: Technical Indicators implemented');
@@ -39,6 +50,7 @@ async function initialize() {
 // Handle process termination
 process.on('SIGINT', async () => {
     logger.info('Received SIGINT, shutting down gracefully...');
+    bot.stop();
     await disconnectDb();
     await disconnectCache();
     process.exit(0);
@@ -46,6 +58,7 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
     logger.info('Received SIGTERM, shutting down gracefully...');
+    bot.stop();
     await disconnectDb();
     await disconnectCache();
     process.exit(0);

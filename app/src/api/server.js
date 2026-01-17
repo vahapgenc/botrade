@@ -33,17 +33,31 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes (to be added in next steps)
+console.log('Loading /api/ai...');
 app.use('/api/ai', require('./routes/ai'));
+console.log('Loading /api/sentiment...');
 app.use('/api/sentiment', require('./routes/sentiment'));
+console.log('Loading /api/analysis...');
 app.use('/api/analysis', require('./routes/analysis'));
+console.log('Loading /api/trading...');
 app.use('/api/trading', require('./routes/trading'));
+console.log('Loading /api/portfolio...');
 app.use('/api/portfolio', require('./routes/portfolio'));
+console.log('Loading /api/technical...');
 app.use('/api/technical', require('./routes/technical'));
+console.log('Loading /api/market...');
 app.use('/api/market', require('./routes/market'));
+console.log('Loading /api/fundamental...');
 app.use('/api/fundamental', require('./routes/fundamental'));
+console.log('Loading /api/news...');
 app.use('/api/news', require('./routes/news'));
+console.log('Loading /api/watchlist...');
 app.use('/api/watchlist', require('./routes/watchlist'));
+console.log('Loading /api/options...');
 app.use('/api/options', require('./routes/options'));
+console.log('Loading /api/bot...');
+app.use('/api/bot', require('./routes/bot'));
+console.log('Routes loaded.');
 
 // Dashboard routes - BEFORE 404 handler
 app.get('/', (req, res) => {

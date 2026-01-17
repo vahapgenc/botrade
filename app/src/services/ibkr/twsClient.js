@@ -16,6 +16,11 @@ class TWSClient extends EventEmitter {
         this.requestQueue = [];
         this.activeRequests = 0;
         this.maxConcurrentRequests = 3; // Limit concurrent requests to prevent crashes
+
+        // Prevent crash on unhandled error events
+        this.on('error', (err) => {
+            logger.error('Unhandled TWSClient error:', err);
+        });
     }
 
     /**

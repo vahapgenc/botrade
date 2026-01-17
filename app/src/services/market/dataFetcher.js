@@ -17,9 +17,9 @@ async function fetchFromIBKR(ticker, limit = 250) {
     try {
         logger.info(`[IBKR] Fetching ${limit} days of data for ${ticker}...`);
         
-        // Add timeout to prevent hanging
+        // Add timeout to prevent hanging (increased to 35s to match TWS client)
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('IBKR request timeout')), 10000)
+            setTimeout(() => reject(new Error('IBKR request timeout')), 35000)
         );
         
         const dataPromise = twsClient.getHistoricalData(ticker, limit, '1 day');

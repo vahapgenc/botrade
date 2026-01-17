@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const twsClient = require('../../services/ibkr/twsClient');
 const logger = require('../../utils/logger');
+const { get: getCache, set: setCache } = require('../../services/cache/cacheManager'); // Using cache now
 
 /**
  * Get option chain for a stock
@@ -11,18 +12,28 @@ router.get('/chain/:ticker', async (req, res) => {
     try {
         const { ticker } = req.params;
         const { exchange = 'SMART' } = req.query;
+        const cacheKey = `option_chain:${ticker}:${exchange}`;
+
+        // Check cache first
+        const cachedChain = await getCache(cacheKey);
+        if (cachedChain) {
+            return res.json(cachedChain);
+        }
         
         logger.info(`Option chain request for ${ticker}`);
         
-        // Add timeout wrapper
+        // Add timeout wrapper (increased to 45s for slow TWS responses)
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Option chain request timeout')), 25000)
+            setTimeout(() => reject(new Error('Option chain request timeout')), 45000)
         );
         
         const optionChain = await Promise.race([
             twsClient.getOptionChain(ticker, exchange),
             timeoutPromise
         ]);
+
+        // Cache for 15 minutes
+        await setCache(cacheKey, optionChain, 900);
         
         res.json(optionChain);
         
@@ -135,8 +146,15 @@ router.get('/atm/:ticker/:expiration', async (req, res) => {
         const marketData = await twsClient.getMarketData(ticker);
         const currentPrice = marketData.price;
         
-        // Get option chain to find available strikes
-        const optionChain = await twsClient.getOptionChain(ticker, exchange);
+        // Get option chain to find available strikes (Use cache if available)
+        const cacheKey = `option_chain:${ticker}:${exchange}`;
+        let optionChain = await getCache(cacheKey);
+        
+        if (!optionChain) {
+            // If not in cache, fetch and cache
+            optionChain = await twsClient.getOptionChain(ticker, exchange);
+            await setCache(cacheKey, optionChain, 900);
+        }
         
         // Find strikes closest to current price
         const validStrikes = optionChain.strikes || [];

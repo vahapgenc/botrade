@@ -18,18 +18,22 @@ async function checkStatus() {
         const badge = document.getElementById('statusBadge');
         const text = document.getElementById('statusText');
         
-        if (data.success && data.connected) {
-            badge.className = 'status-badge connected';
-            text.textContent = 'TWS Connected';
-        } else {
-            badge.className = 'status-badge disconnected';
-            text.textContent = 'TWS Disconnected';
+        if (badge && text) {
+            if (data.success && data.connected) {
+                badge.className = 'status-badge connected';
+                text.textContent = 'TWS Connected';
+            } else {
+                badge.className = 'status-badge disconnected';
+                text.textContent = 'TWS Disconnected';
+            }
         }
     } catch (error) {
         const badge = document.getElementById('statusBadge');
         const text = document.getElementById('statusText');
-        badge.className = 'status-badge disconnected';
-        text.textContent = 'API Error';
+        if (badge && text) {
+            badge.className = 'status-badge disconnected';
+            text.textContent = 'API Error';
+        }
     }
 }
 

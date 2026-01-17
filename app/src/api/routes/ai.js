@@ -18,6 +18,47 @@ router.get('/input/:ticker', async (req, res) => {
         const { ticker } = req.params;
         logger.info(`AI input data request for ${ticker}`);
         
+        // Use Promise.all where possible to run independent checks in parallel
+        // This dramatically reduces total wait time from sum(t) to max(t)
+        
+        // 1 & 2. Market Data & Technicals (Technicals need 250 days, basic market needs 5)
+        // We can just fetch 250 days once and use it for both
+        const marketDataPromise = getHistoricalData(ticker, 'daily', 250)
+            .catch(err => ({ error: err.message }));
+
+        // 3. News Sentiment
+        const newsPromise = getNewsForTicker(ticker, { limit: 20, lookbackDays: 7 })
+            .catch(err => ({ error: err.message }));
+            
+        // 3b. Sentiment Signal (often depends on the news fetch, but can be separate or optimized)
+        const signalPromise = getSentimentSignal(ticker, { limit: 20 })
+            .catch(err => ({ error: err.message }));
+
+        // 4. Fundamental Analysis
+        const fundamentalPromise = getFundamentals(ticker)
+             .catch(err => ({ error: err.message }));
+
+        // 5. Market Sentiment (Global)
+        const marketSentimentPromise = Promise.all([
+            fetchFearGreed(), 
+            fetchVIX()
+        ]).catch(err => ([{ error: err.message }, { error: err.message }]));
+
+        // Wait for all in parallel
+        const [
+            marketDataResult, 
+            newsResult, 
+            signalResult, 
+            fundamentalResult, 
+            marketSentimentResult
+        ] = await Promise.all([
+            marketDataPromise,
+            newsPromise,
+            signalPromise,
+            fundamentalPromise,
+            marketSentimentPromise
+        ]);
+
         const result = {
             ticker,
             timestamp: new Date(),
@@ -25,196 +66,175 @@ router.get('/input/:ticker', async (req, res) => {
             data: {}
         };
         
-        // 1. Market Data
-        try {
-            const marketData = await getHistoricalData(ticker, 'daily', 5);
-            if (marketData && marketData.length > 0) {
-                const latest = marketData[0];
-                result.data.market = {
-                    price: latest.close,
-                    open: latest.open,
-                    high: latest.high,
-                    low: latest.low,
-                    volume: latest.volume,
-                    date: latest.date,
-                    dataPoints: marketData.length
-                };
-                result.status.market = 'success';
-            } else {
-                result.status.market = 'no_data';
-            }
-        } catch (error) {
-            logger.error('Market data error:', error.message);
-            result.status.market = 'error';
-            result.data.market = { error: error.message };
-        }
-        
-        // 2. Technical Indicators
-        try {
-            const marketData = await getHistoricalData(ticker, 'daily', 250);
-            const priceData = extractPriceArrays(marketData);
-            const technical = await analyzeTechnicals(priceData);
-            
-            result.data.technical = {
-                rsi: {
-                    value: technical.momentum?.rsi?.value,
-                    signal: technical.momentum?.rsi?.signal,
-                    interpretation: technical.momentum?.rsi?.interpretation
-                },
-                macd: {
-                    value: technical.macd?.macd,
-                    signal: technical.macd?.signal,
-                    histogram: technical.macd?.histogram,
-                    crossover: technical.macd?.crossover
-                },
-                bollinger: {
-                    position: technical.bollinger?.position,
-                    signal: technical.bollinger?.signal,
-                    upperBand: technical.bollinger?.upper,
-                    lowerBand: technical.bollinger?.lower,
-                    middleBand: technical.bollinger?.middle
-                },
-                movingAverages: {
-                    sma20: technical.trend?.sma20,
-                    sma50: technical.trend?.sma50,
-                    ema9: technical.trend?.ema9,
-                    ema21: technical.trend?.ema21,
-                    trend: technical.trend?.trend,
-                    trendStrength: technical.trend?.trendStrength
-                },
-                composite: {
-                    score: technical.composite?.score,
-                    signal: technical.composite?.signal,
-                    interpretation: technical.composite?.interpretation,
-                    confidence: technical.composite?.confidence
-                },
-                summary: technical.summary ? `${technical.summary.overall} - ${technical.summary.recommendation} (${technical.summary.confidence} confidence). ${technical.summary.keyFactors}` : null
+        // PROCESS 1 & 2: Market & Technicals
+        if (marketDataResult && !marketDataResult.error && Array.isArray(marketDataResult)) {
+            // Market Data (Latest)
+            const latest = marketDataResult[marketDataResult.length - 1]; 
+            result.data.market = {
+                price: latest.close,
+                open: latest.open,
+                high: latest.high,
+                low: latest.low,
+                volume: latest.volume,
+                date: latest.date,
+                dataPoints: marketDataResult.length
             };
-            result.status.technical = 'success';
-        } catch (error) {
-            logger.error('Technical analysis error:', error.message);
-            result.status.technical = 'error';
-            result.data.technical = { error: error.message };
-        }
-        
-        // 3. News Sentiment
-        try {
-            const news = await getNewsForTicker(ticker, { limit: 20, lookbackDays: 7 });
-            const signal = await getSentimentSignal(ticker, { limit: 20 });
-            
-            result.data.news = {
-                source: news.source || 'Unknown',
-                articlesCount: news.itemsReturned,
-                sentiment: {
-                    overall: news.sentiment?.overall || 'Neutral',
-                    score: news.sentiment?.score || 0,
-                    bullish: news.sentiment?.bullish || 0,
-                    bearish: news.sentiment?.bearish || 0,
-                    neutral: news.sentiment?.neutral || 0,
-                    distribution: news.sentiment?.distribution || {}
-                },
-                tradingSignal: {
-                    signal: signal?.signal || 'HOLD',
-                    strength: signal?.strength || 'NEUTRAL',
-                    recommendation: signal?.recommendation || 'Insufficient data'
-                },
-                recentHeadlines: (news.articles || []).slice(0, 3).map(a => ({
-                    title: a.title || 'No title',
-                    sentiment: a.sentiment?.label || 'Neutral',
-                    score: a.sentiment?.score || 0,
-                    source: a.source || 'Unknown',
-                    date: a.timePublished || a.publishedAt || new Date().toISOString()
-                }))
-            };
-            result.status.news = 'success';
-        } catch (error) {
-            logger.error('News sentiment error:', error.message);
-            result.status.news = 'error';
-            result.data.news = { error: error.message };
-        }
-        
-        // 4. Fundamental Analysis
-        try {
-            const fundamental = await getFundamentals(ticker);
-            
-            if (fundamental.error) {
-                result.status.fundamental = 'limited';
-                result.data.fundamental = {
-                    error: fundamental.error,
-                    note: 'Fundamental data limited on free API tier'
-                };
-            } else {
-                result.data.fundamental = {
-                    source: fundamental.source,
-                    score: fundamental.canSlim?.score,
-                    grade: fundamental.canSlim?.grade,
-                    rating: fundamental.canSlim?.rating,
-                    profile: {
-                        name: fundamental.profile?.name,
-                        sector: fundamental.profile?.sector,
-                        industry: fundamental.profile?.industry
-                    },
-                    valuation: {
-                        marketCap: fundamental.valuation?.marketCap,
-                        pe: fundamental.valuation?.pe
-                    },
-                    canSlimFactors: fundamental.canSlim?.grades
-                };
-                result.status.fundamental = 'success';
+            result.status.market = 'success';
+
+            // Technicals
+            try {
+                const priceData = extractPriceArrays(marketDataResult);
+                const technical = await analyzeTechnicals(priceData);
+                result.data.technical = formatTechnicalData(technical); // Refactored helper
+                result.status.technical = 'success';
+            } catch (err) {
+                 result.status.technical = 'error';
+                 result.data.technical = { error: err.message };
             }
-        } catch (error) {
-            logger.error('Fundamental analysis error:', error.message);
-            result.status.fundamental = 'error';
-            result.data.fundamental = { error: error.message };
+        } else {
+             result.status.market = 'error';
+             result.data.market = { error: marketDataResult.error || 'No data' };
+             result.status.technical = 'error';
+             result.data.technical = { error: 'Dependent on market data' };
         }
-        
-        // 5. Market Sentiment
-        try {
-            const [fearGreed, vix] = await Promise.all([
-                fetchFearGreed(),
-                fetchVIX()
-            ]);
-            
+
+        // PROCESS 3: News
+        if (newsResult && !newsResult.error) {
+             result.data.news = formatNewsData(newsResult, signalResult); // Refactored helper
+             result.status.news = 'success';
+        } else {
+             result.status.news = 'error';
+             result.data.news = { error: newsResult.error };
+        }
+
+        // PROCESS 4: Fundamentals
+        if (fundamentalResult && !fundamentalResult.error) {
+             result.data.fundamental = formatFundamentalData(fundamentalResult); // Refactored helper
+             result.status.fundamental = 'success';
+        } else {
+             result.status.fundamental = 'error';
+             result.data.fundamental = { error: fundamentalResult.error };
+        }
+
+        // PROCESS 5: Market Sentiment
+        const [fearGreed, vix] = marketSentimentResult;
+        if (!fearGreed.error && !vix.error) {
             result.data.marketSentiment = {
-                fearGreed: {
-                    value: fearGreed.value,
-                    emotion: fearGreed.emotion,
-                    valueText: fearGreed.valueText
-                },
-                vix: {
-                    value: vix.value,
-                    interpretation: vix.interpretation,
-                    signal: vix.signal
-                }
+                fearGreed: { value: fearGreed.value, emotion: fearGreed.emotion, valueText: fearGreed.valueText },
+                vix: { value: vix.value, interpretation: vix.interpretation, signal: vix.signal }
             };
             result.status.marketSentiment = 'success';
-        } catch (error) {
-            logger.error('Market sentiment error:', error.message);
-            result.status.marketSentiment = 'error';
-            result.data.marketSentiment = { error: error.message };
+        } else {
+            result.status.marketSentiment = 'partial_error';
+            result.data.marketSentiment = { error: 'One or more indicators failed' };
         }
         
         // Overall status summary
-        const statuses = Object.values(result.status);
-        const successCount = statuses.filter(s => s === 'success').length;
-        const totalCount = statuses.length;
-        
-        result.summary = {
-            dataSourcesAvailable: `${successCount}/${totalCount}`,
-            readyForAI: successCount >= 3, // At least 3 data sources working
-            allSystemsOperational: successCount === totalCount
-        };
+        result.status.overall = 
+            ((result.status.market === 'success' || result.data.market) && 
+             (result.status.technical === 'success' || result.data.technical) && 
+             (result.status.news === 'success' || result.data.news) && 
+             (result.status.fundamental === 'success' || result.data.fundamental)) ? 'complete' : 'partial';
         
         res.json(result);
         
     } catch (error) {
-        logger.error('AI input endpoint error:', error);
-        res.status(500).json({
-            error: 'Failed to fetch AI input data',
-            message: error.message
+        logger.error('AI input data aggregation error:', error);
+        res.status(500).json({ 
+            error: 'Failed to aggregation AI input data',
+            details: error.message 
         });
     }
 });
+
+// Helper functions for formatting
+
+function formatTechnicalData(technical) {
+    if (!technical) return null;
+    return {
+        rsi: {
+            value: technical.momentum?.rsi?.value,
+            signal: technical.momentum?.rsi?.signal,
+            interpretation: technical.momentum?.rsi?.interpretation
+        },
+        macd: {
+            value: technical.macd?.macd,
+            signal: technical.macd?.signal,
+            histogram: technical.macd?.histogram,
+            crossover: technical.macd?.crossover
+        },
+        bollinger: {
+            position: technical.bollinger?.position,
+            signal: technical.bollinger?.signal,
+            upperBand: technical.bollinger?.upper,
+            lowerBand: technical.bollinger?.lower,
+            middleBand: technical.bollinger?.middle
+        },
+        movingAverages: {
+            sma20: technical.trend?.sma20,
+            sma50: technical.trend?.sma50,
+            ema9: technical.trend?.ema9,
+            ema21: technical.trend?.ema21,
+            trend: technical.trend?.trend,
+            trendStrength: technical.trend?.trendStrength
+        },
+        composite: {
+            score: technical.composite?.score,
+            signal: technical.composite?.signal,
+            interpretation: technical.composite?.interpretation,
+            confidence: technical.composite?.confidence
+        },
+        summary: technical.summary ? `${technical.summary.overall} - ${technical.summary.recommendation} (${technical.summary.confidence} confidence). ${technical.summary.keyFactors}` : null
+    };
+}
+
+function formatNewsData(news, signal) {
+    if (!news) return null;
+    return {
+        source: news.source || 'Unknown',
+        articlesCount: news.itemsReturned || 0,
+        sentiment: {
+            overall: news.sentiment?.overall || 'Neutral',
+            score: news.sentiment?.score || 0,
+            bullish: news.sentiment?.bullish || 0,
+            bearish: news.sentiment?.bearish || 0,
+            neutral: news.sentiment?.neutral || 0,
+            distribution: news.sentiment?.distribution || {}
+        },
+        tradingSignal: {
+            signal: signal?.signal || 'HOLD',
+            strength: signal?.strength || 'NEUTRAL',
+            recommendation: signal?.recommendation || 'Insufficient data'
+        },
+        recentHeadlines: (news.articles || []).slice(0, 3).map(a => ({
+            title: a.title || 'No title',
+            sentiment: a.sentiment?.label || 'Neutral',
+            score: a.sentiment?.score || 0,
+            source: a.source || 'Unknown',
+            date: a.timePublished || a.publishedAt || new Date().toISOString()
+        }))
+    };
+}
+
+function formatFundamentalData(fundamental) {
+    if (!fundamental) return null;
+    return {
+        source: fundamental.source,
+        score: fundamental.canSlim?.score,
+        grade: fundamental.canSlim?.grade,
+        rating: fundamental.canSlim?.rating,
+        profile: {
+            name: fundamental.profile?.name,
+            sector: fundamental.profile?.sector,
+            industry: fundamental.profile?.industry
+        },
+        valuation: {
+            marketCap: fundamental.valuation?.marketCap,
+            pe: fundamental.valuation?.pe
+        },
+        canSlimFactors: fundamental.canSlim?.grades
+    };
+}
 
 /**
  * GET /api/ai/status

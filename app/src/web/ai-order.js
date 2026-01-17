@@ -9,6 +9,7 @@ let portfolioData = {};
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     loadPortfolioData();
+    loadWatchlistTickers();
     
     // Stock symbol input handler
     document.getElementById('stockSymbol').addEventListener('keyup', (e) => {
@@ -263,6 +264,7 @@ async function runAIAnalysis() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 ticker: symbol,
+                companyName: stockData.companyName || symbol, // Use symbol if company name is missing
                 portfolio: {
                     totalBudget: accountData.netLiquidation || 100000,
                     availableCash: accountData.cashBalance || 100000,
@@ -348,6 +350,90 @@ async function loadPortfolioData() {
         console.error('Error loading portfolio data:', error);
     }
 }
+
+let availableTickers = [];
+
+async function loadWatchlistTickers() {
+    try {
+        const response = await fetch('/api/watchlist');
+        const data = await response.json();
+        
+        if (data.success && data.watchlists) {
+            const uniqueTickers = new Set();
+            data.watchlists.forEach(wl => {
+                if (wl.stocks) {
+                    wl.stocks.forEach(stock => uniqueTickers.add(stock.ticker));
+                }
+            });
+            
+            availableTickers = Array.from(uniqueTickers).sort();
+            setupAutocomplete();
+        }
+    } catch (error) {
+        console.error('Error loading watchlist tickers:', error);
+    }
+}
+
+function setupAutocomplete() {
+    const input = document.getElementById('stockSymbol');
+    const list = document.getElementById('autocomplete-list');
+    
+    // Input event for filtering
+    input.addEventListener('input', function() {
+        const val = this.value.toUpperCase();
+        closeAllLists();
+        
+        if (!val) { return false;}
+        
+        let matches = availableTickers.filter(t => t.startsWith(val));
+        
+        if (matches.length > 0) {
+            list.style.display = 'block';
+            matches.slice(0, 100).forEach(ticker => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.innerHTML = `<strong>${ticker.substr(0, val.length)}</strong>${ticker.substr(val.length)}`;
+                item.addEventListener('click', function() {
+                    input.value = ticker;
+                    closeAllLists();
+                });
+                list.appendChild(item);
+            });
+        }
+    });
+
+    // Focus event to show all tickers
+    input.addEventListener('focus', function() {
+        if (this.value === '') {
+            closeAllLists();
+            list.style.display = 'block';
+            availableTickers.slice(0, 100).forEach(ticker => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.textContent = ticker;
+                item.addEventListener('click', function() {
+                    input.value = ticker;
+                    closeAllLists();
+                });
+                list.appendChild(item);
+            });
+        }
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target !== input) {
+            closeAllLists();
+        }
+    });
+
+    function closeAllLists() {
+        list.innerHTML = '';
+        list.style.display = 'none';
+    }
+}
+
+// Function selectTicker removed as it is now native functionality
 
 function updateOrderValue() {
     const quantity = parseInt(document.getElementById('orderQuantity').value) || 0;
