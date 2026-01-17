@@ -81,7 +81,7 @@ services:
   # Trading Bot Application
   app:
     build:
-      context: .
+      context: ./app
       dockerfile: Dockerfile
     container_name: botrade-app
     restart: unless-stopped
@@ -121,8 +121,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./logs:/app/logs
-      - ./data:/app/data
+      - ./app/logs:/app/logs
+      - ./app/data:/app/data
     networks:
       - botrade-network
 
@@ -138,7 +138,7 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - .:/app
+      - ./app:/app
     networks:
       - botrade-network
     command: sh -c "npm install -g prisma && npx prisma studio --port 5555 --browser none"
