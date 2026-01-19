@@ -110,8 +110,8 @@ class TWSClient extends EventEmitter {
 
         // Error handling with crash prevention
         this.ib.on('error', (err, code, reqId) => {
-            // Ignore informational messages
-            if (code === 2104 || code === 2106 || code === 2158) {
+            // Ignore informational messages and "News feed is not allowed"
+            if (code === 2104 || code === 2106 || code === 2158 || code === 10276) {
                 logger.debug(`TWS Info (${code}): ${err.message}`);
                 return;
             }
