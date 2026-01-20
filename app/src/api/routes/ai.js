@@ -1,22 +1,32 @@
 const express = require('express');
 const router = express.Router();
+console.log('Loading AI route dependencies...');
 const { getHistoricalData, extractPriceArrays } = require('../../services/market/dataFetcher');
+console.log('Loaded dataFetcher');
 const { analyzeTechnicals } = require('../../services/technical/technicalAnalyzer');
+console.log('Loaded technicalAnalyzer');
 const { getNewsForTicker, getSentimentSignal } = require('../../services/news/newsAnalyzer');
+console.log('Loaded newsAnalyzer');
 const { getFundamentals } = require('../../services/fundamental/fundamentalAnalyzer');
+console.log('Loaded fundamentalAnalyzer');
 const { fetchFearGreed } = require('../../services/sentiment/fearGreedFetcher');
+console.log('Loaded fearGreed');
 const { fetchVIX } = require('../../services/sentiment/vixFetcher');
+console.log('Loaded vixFetcher');
 const { makeAIDecision, getDecisionHistory, getDecisionStats } = require('../../services/ai/aiEngine');
+console.log('Loaded aiEngine');
 const logger = require('../../utils/logger');
+console.log('Loaded all AI dependencies');
 
 /**
  * GET /api/ai/input/:ticker
  * Returns all AI input data for a ticker in one JSON response
  */
 router.get('/input/:ticker', async (req, res) => {
+    const { ticker } = req.params;
+    const reqId = Math.random().toString(36).substring(7);
     try {
-        const { ticker } = req.params;
-        logger.info(`AI input data request for ${ticker}`);
+        logger.info(`[${reqId}] AI input data request for ${ticker}`);
         
         // Use Promise.all where possible to run independent checks in parallel
         // This dramatically reduces total wait time from sum(t) to max(t)

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const yahooFinance = require('yahoo-finance2').default; // Using v2 wrapper
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
 const twsClient = require('../ibkr/twsClient');
@@ -10,7 +11,66 @@ const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 const FMP_API_KEY = process.env.FMP_API_KEY;
 
 /**
- * Fetch fundamental data from IBKR (Primary)
+ * Fetch fundamental data from Yahoo Finance (Primary - Free & Reliable)
+ */
+async function fetchFromYahoo(ticker) {
+    logger.info(`[Yahoo] Fetching fundamental data for ${ticker}...`);
+    
+    // Modules to fetch:
+    // summaryProfile: Industry, sector, description, employees
+    // summaryDetail: Price, marketCap, volume
+    // defaultKeyStatistics: PE, EPS, Beta, Margins
+    // financialData: Target price, revenue growth
+    // calendarEvents: Earnings date
+    const modules = ['summaryProfile', 'summaryDetail', 'defaultKeyStatistics', 'financialData', 'calendarEvents', 'price'];
+    
+    const result = await yahooFinance.quoteSummary(ticker, { modules });
+    
+    if (!result) {
+        throw new Error('No data returned from Yahoo Finance');
+    }
+
+    const { summaryProfile, summaryDetail, defaultKeyStatistics, financialData, calendarEvents, price } = result;
+
+    if (!summaryProfile || !price) {
+        throw new Error('Incomplete data from Yahoo Finance');
+    }
+
+    // Map to standard format
+    return {
+        profile: {
+            companyName: price.longName || ticker,
+            sector: summaryProfile.sector || 'N/A',
+            industry: summaryProfile.industry || 'N/A',
+            description: summaryProfile.longBusinessSummary || 'N/A',
+            ceo: (summaryProfile.companyOfficers && summaryProfile.companyOfficers.length > 0) ? summaryProfile.companyOfficers[0].name : 'N/A',
+            website: summaryProfile.website || 'N/A',
+            fullTimeEmployees: summaryProfile.fullTimeEmployees || 0
+        },
+        quote: {
+            price: price.regularMarketPrice || 0,
+            marketCap: price.marketCap || 0,
+            volume: summaryDetail.volume || 0,
+            avgVolume: summaryDetail.averageVolume || 0,
+            pe: summaryDetail.trailingPE || null,
+            eps: defaultKeyStatistics.trailingEps || null,
+            beta: defaultKeyStatistics.beta || null,
+            dividendYield: summaryDetail.dividendYield || null,
+            bookValue: defaultKeyStatistics.bookValue || null,
+            profitMargin: defaultKeyStatistics.profitMargins || null,
+            returnOnEquity: financialData.returnOnEquity || null
+        },
+        calendar: {
+            earnings: calendarEvents && calendarEvents.earnings ? [calendarEvents.earnings] : [],
+            dividends: [], // Not directly in summary
+            splits: []
+        },
+        source: 'Yahoo Finance'
+    };
+}
+
+/**
+ * Fetch fundamental data from IBKR (Secondary)
  */
 async function fetchFromIBKR(ticker) {
     try {
@@ -187,23 +247,38 @@ async function getFundamentals(ticker) {
         let data = null;
         let source = null;
         
-        // Try 1: IBKR (primary - most comprehensive, includes calendar)
+        // Try 1: Yahoo Finance (Primary - Free & Reliable)
         try {
-            logger.info(`[1/3] Trying IBKR for ${ticker}...`);
-            data = await fetchFromIBKR(ticker);
+            logger.info(`[1/4] Trying Yahoo Finance for ${ticker}...`);
+            data = await fetchFromYahoo(ticker);
             if (data && data.profile) {
-                source = 'IBKR';
-                logger.info(`✅ IBKR returned fundamental data with calendar events`);
+                source = 'Yahoo Finance';
+                logger.info(`✅ Yahoo Finance returned fundamental data with calendar events`);
             }
         } catch (error) {
-            logger.warn(`⚠️  IBKR failed: ${error.message}`);
+            logger.warn(`⚠️  Yahoo Finance failed: ${error.message}`);
             // Continue to fallbacks
         }
+
+        // Try 2: IBKR (Secondary)
+        if (!data) {
+            try {
+                logger.info(`[2/4] Trying IBKR for ${ticker}...`);
+                data = await fetchFromIBKR(ticker);
+                if (data && data.profile) {
+                    source = 'IBKR';
+                    logger.info(`✅ IBKR returned fundamental data with calendar events`);
+                }
+            } catch (error) {
+                logger.warn(`⚠️  IBKR failed: ${error.message}`);
+                // Continue to fallbacks
+            }
+        }
         
-        // Try 2: Alpha Vantage (fallback)
+        // Try 3: Alpha Vantage (fallback)
         if (!data && ALPHA_VANTAGE_API_KEY) {
             try {
-                logger.info(`[2/3] Trying Alpha Vantage for ${ticker}...`);
+                logger.info(`[3/4] Trying Alpha Vantage for ${ticker}...`);
                 data = await fetchFromAlphaVantage(ticker);
                 if (data && data.profile) {
                     source = 'Alpha Vantage';
@@ -217,10 +292,10 @@ async function getFundamentals(ticker) {
             logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
         }
         
-        // Try 3: FMP (secondary fallback)
+        // Try 4: FMP (secondary fallback)
         if (!data && FMP_API_KEY) {
             try {
-                logger.info(`[3/3] Trying FMP for ${ticker}...`);
+                logger.info(`[4/4] Trying FMP for ${ticker}...`);
                 data = await fetchFromFMP(ticker);
                 if (data && data.profile) {
                     source = 'FMP';

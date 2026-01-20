@@ -222,6 +222,7 @@ function renderPositions(filteredData = null) {
                     <tr>
                         <th style="padding: 0.75rem 1.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Symbol</th>
                         <th style="padding: 0.75rem 1.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Type</th>
+                        <th style="padding: 0.75rem 1.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Order Date</th>
                         <th style="padding: 0.75rem 1.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Quantity</th>
                         <th style="padding: 0.75rem 1.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Avg Cost</th>
                         <th style="padding: 0.75rem 1.5rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Market Value</th>
@@ -236,6 +237,9 @@ function renderPositions(filteredData = null) {
                                     ${pos.secType === 'OPT' ? 'background: #f3e8ff; color: #7c3aed;' : 'background: #dbeafe; color: #2563eb;'}">
                                     ${pos.secType === 'OPT' ? 'Option' : pos.secType || 'Stock'}
                                 </span>
+                            </td>
+                            <td style="padding: 1rem 1.5rem; color: #6b7280;">
+                                ${pos.entryDate ? new Date(pos.entryDate).toLocaleDateString() : '-'}
                             </td>
                             <td style="padding: 1rem 1.5rem;">${pos.position}</td>
                             <td style="padding: 1rem 1.5rem;">$${pos.averageCost?.toFixed(2) || '0.00'}</td>

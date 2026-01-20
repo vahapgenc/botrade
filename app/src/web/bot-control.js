@@ -109,11 +109,11 @@ async function runNow() {
     const btn = document.getElementById('runNowBtn');
     btn.disabled = true;
     try {
-        localLog('Triggering manual cycle...', 'info');
+        localLog('Triggering manual cycle (single run)...', 'info');
         const response = await fetch('/api/bot/run-now', { method: 'POST' });
         const data = await response.json();
         if (response.ok) {
-            localLog(data.message, 'success');
+            localLog('Manual cycle started. This runs once and does not enable the scheduler.', 'success');
         } else {
             localLog(data.error, 'error');
         }
@@ -122,6 +122,40 @@ async function runNow() {
         localLog('Error triggering manual run: ' + error.message, 'error');
     } finally {
         setTimeout(() => { btn.disabled = false; }, 2000);
+    }
+}
+
+async function updateSchedule() {
+    const select = document.getElementById('scheduleSelect');
+    const msg = document.getElementById('scheduleMsg');
+    const cronExpression = select.value;
+    
+    try {
+        msg.textContent = 'Updating...';
+        msg.style.color = 'blue';
+        
+        const response = await fetch('/api/bot/config', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cronExpression })
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            msg.textContent = 'Schedule updated!';
+            msg.style.color = 'green';
+            localLog(data.message, 'success');
+        } else {
+            msg.textContent = 'Failed: ' + data.error;
+            msg.style.color = 'red';
+            localLog(data.error, 'error');
+        }
+        updateStatus();
+    } catch (error) {
+        msg.textContent = 'Error: ' + error.message;
+        msg.style.color = 'red';
+    } finally {
+        setTimeout(() => { msg.textContent = ''; }, 3000);
     }
 }
 

@@ -432,6 +432,72 @@ class TWSClient extends EventEmitter {
     }
 
     /**
+     * Get executions for the current day
+     * @param {Object} filter - Execution filter { clientId, acctCode, time, symbol, secType, exchange, side }
+     */
+    async getExecutions(filter = {}) {
+        if (!this.connected) {
+            await this.connect();
+        }
+
+        return new Promise((resolve, reject) => {
+            const reqId = Math.floor(Math.random() * 1000000);
+            const executions = [];
+            
+            const execDetailsHandler = (id, contract, execution) => {
+                if (id === reqId) {
+                    executions.push({
+                        contract,
+                        execution,
+                        symbol: contract.symbol,
+                        side: execution.side,
+                        shares: execution.shares,
+                        price: execution.price,
+                        time: execution.time,
+                        orderId: execution.orderId,
+                        execId: execution.execId
+                    });
+                }
+            };
+
+            const execDetailsEndHandler = (id) => {
+                if (id === reqId) {
+                    this.ib.removeListener('execDetails', execDetailsHandler);
+                    this.ib.removeListener('execDetailsEnd', execDetailsEndHandler);
+                    this.ib.removeListener('error', errorHandler);
+                    resolve(executions);
+                }
+            };
+
+            const errorHandler = (err, code, id) => {
+                if (id === reqId) {
+                    this.ib.removeListener('execDetails', execDetailsHandler);
+                    this.ib.removeListener('execDetailsEnd', execDetailsEndHandler);
+                    this.ib.removeListener('error', errorHandler);
+                    logger.warn(`Error getting executions: ${err.message}`);
+                    resolve([]); // Return empty on error to avoid crashing
+                }
+            };
+
+            this.ib.on('execDetails', execDetailsHandler);
+            this.ib.on('execDetailsEnd', execDetailsEndHandler);
+            this.ib.on('error', errorHandler);
+            
+            logger.info(`Requesting executions with filter: ${JSON.stringify(filter)}`);
+            this.ib.reqExecutions(reqId, filter);
+            
+            // Timeout
+            setTimeout(() => {
+                this.ib.removeListener('execDetails', execDetailsHandler);
+                this.ib.removeListener('execDetailsEnd', execDetailsEndHandler);
+                this.ib.removeListener('error', errorHandler);
+                if (executions.length > 0) resolve(executions);
+                else resolve([]);
+            }, 5000);
+        });
+    }
+
+    /**
      * Get open orders
      */
     async getOpenOrders() {

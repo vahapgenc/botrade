@@ -3,8 +3,9 @@ Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "   STARTING BOTRADE & FIXING GATEWAY     " -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
-# 1. Start all containers in the background
+# 1. Start all containers in the background (Build app to ensure code changes are applied)
 Write-Host "1. Launching Docker Containers..." -ForegroundColor Yellow
+docker-compose up -d --build app
 docker-compose up -d
 
 # 2. Wait for the Gateway to initialize files (Crucial step)

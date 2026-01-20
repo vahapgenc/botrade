@@ -42,10 +42,9 @@ router.get('/:id', async (req, res) => {
       where: { id: parseInt(id) },
       include: {
         stocks: {
-          orderBy: [
-            { rank: 'asc' },
-            { addedAt: 'desc' }
-          ]
+          orderBy: {
+            addedAt: 'desc'
+          }
         }
       }
     });

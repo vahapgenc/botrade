@@ -71,6 +71,29 @@ router.get('/logs', (req, res) => {
     }
 });
 
-module.exports = router;
+// POST /api/bot/config
+router.post('/config', (req, res) => {
+    try {
+        const { cronExpression } = req.body;
+        if (!cronExpression) {
+             return res.status(400).json({ error: 'cronExpression is required' });
+        }
+        
+        // Basic validation (optional)
+        if (cronExpression.split(' ').length < 5) {
+             return res.status(400).json({ error: 'Invalid cron expression format' });
+        }
+
+        bot.updateSchedule(cronExpression);
+        
+        res.json({ 
+            message: 'Schedule updated successfully', 
+            config: bot.getStatus().config 
+        });
+    } catch (error) {
+        logger.error('Error updating config', error);
+        res.status(500).json({ error: 'Failed to update configuration' }); 
+    }
+});
 
 module.exports = router;

@@ -1,4 +1,4 @@
-const prisma = require('../../database/prisma');
+const { prisma } = require('../../database/prisma');
 const RankingEngine = require('../ai/rankingEngine');
 const OrderService = require('../ibkr/orderService');
 const logger = require('../../utils/logger');

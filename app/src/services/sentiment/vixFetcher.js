@@ -1,4 +1,7 @@
 const axios = require('axios');
+const yahooFinance = require('yahoo-finance2').default;
+const csv = require('csv-parser');
+const { Readable } = require('stream');
 const config = require('../../../config/settings');
 const logger = require('../../utils/logger');
 
@@ -9,7 +12,100 @@ const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 const FMP_API_KEY = process.env.FMP_API_KEY;
 
 /**
- * Fetch from Alpha Vantage GLOBAL_QUOTE for ^VIX (Primary)
+ * Fetch from Yahoo Finance (Primary - Free & Reliable)
+ */
+async function fetchVIXFromYahoo() {
+    // Try to get real-time quote first
+    try {
+        const quote = await yahooFinance.quote('^VIX');
+        if (quote && quote.regularMarketPrice) {
+            return {
+                value: quote.regularMarketPrice,
+                change: quote.regularMarketChange || 0,
+                changePercent: quote.regularMarketChangePercent || 0,
+                previousClose: quote.regularMarketPreviousClose || quote.regularMarketPrice,
+                source: 'Yahoo Finance (Quote)'
+            };
+        }
+    } catch (e) {
+        logger.warn('Yahoo Quote failed, trying historical...');
+    }
+
+    // Fallback to historical if quote fails
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 5); // Last 5 days
+
+    const result = await yahooFinance.historical('^VIX', { 
+        period1: start.toISOString().split('T')[0],
+        period2: end.toISOString().split('T')[0]
+    });
+
+    if (!result || result.length === 0) {
+        throw new Error('No data returned from Yahoo Finance');
+    }
+
+    const latest = result[result.length - 1];
+    const prev = result.length > 1 ? result[result.length - 2] : latest;
+    
+    return {
+        value: latest.close,
+        change: latest.close - prev.close,
+        changePercent: ((latest.close - prev.close) / prev.close) * 100,
+        previousClose: prev.close,
+        source: 'Yahoo Finance (Historical)'
+    };
+}
+
+/**
+ * Fetch from CBOE (Secondary - CSV Parsing)
+ */
+async function fetchVIXFromCBOE() {
+    const url = 'https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv';
+    const response = await axios.get(url, { 
+        responseType: 'arraybuffer', // Important for CSV
+        timeout: 5000 
+    });
+
+    const rows = [];
+    
+    await new Promise((resolve, reject) => {
+        const stream = Readable.from(response.data.toString());
+        stream
+            .pipe(csv())
+            .on('data', (data) => rows.push(data))
+            .on('end', resolve)
+            .on('error', reject);
+    });
+
+    if (rows.length === 0) {
+        throw new Error('No rows found in CBOE CSV');
+    }
+
+    // Get last row
+    const lastRow = rows[rows.length - 1];
+    // CBOE CSV format usually: DATE,OPEN,HIGH,LOW,CLOSE
+    
+    const value = parseFloat(lastRow['CLOSE'] || lastRow['Close']);
+    const prevValue = parseFloat(rows[rows.length - 2]['CLOSE'] || rows[rows.length - 2]['Close']);
+    
+    if (isNaN(value)) {
+        throw new Error('Invalid CSV data structure');
+    }
+
+    const change = value - prevValue;
+    
+    return {
+        value: value,
+        change: change,
+        changePercent: (change / prevValue) * 100,
+        previousClose: prevValue,
+        source: 'CBOE (CSV)'
+    };
+}
+
+/**
+ * Fetch from Alpha Vantage GLOBAL_QUOTE for ^VIX (Fallback)
  */
 async function fetchVIXFromAlphaVantage() {
     const params = {
@@ -91,10 +187,36 @@ async function fetchVIX() {
         let vixData = null;
         let source = null;
         
-        // Try 1: Alpha Vantage (primary)
-        if (ALPHA_VANTAGE_API_KEY) {
+        // Try 1: Yahoo Finance (Primary - Best source)
+        try {
+            logger.info(`[1/4] Trying Yahoo Finance for VIX...`);
+            vixData = await fetchVIXFromYahoo();
+            if (vixData && vixData.value) {
+                source = vixData.source;
+                logger.info(`✅ Yahoo Finance returned VIX: ${vixData.value}`);
+            }
+        } catch (error) {
+            logger.warn(`⚠️  Yahoo Finance failed: ${error.message}`);
+        }
+
+        // Try 2: CBOE (Secondary)
+        if (!vixData) {
             try {
-                logger.info(`[1/2] Trying Alpha Vantage for VIX...`);
+                logger.info(`[2/4] Trying CBOE for VIX...`);
+                vixData = await fetchVIXFromCBOE();
+                if (vixData && vixData.value) {
+                    source = vixData.source;
+                    logger.info(`✅ CBOE returned VIX: ${vixData.value}`);
+                }
+            } catch (error) {
+                logger.warn(`⚠️  CBOE failed: ${error.message}`);
+            }
+        }
+
+        // Try 3: Alpha Vantage (Fallback)
+        if (!vixData && ALPHA_VANTAGE_API_KEY) {
+            try {
+                logger.info(`[3/4] Trying Alpha Vantage for VIX...`);
                 vixData = await fetchVIXFromAlphaVantage();
                 if (vixData && vixData.value) {
                     source = vixData.source;
@@ -103,14 +225,12 @@ async function fetchVIX() {
             } catch (error) {
                 logger.warn(`⚠️  Alpha Vantage failed: ${error.message}`);
             }
-        } else {
-            logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
-        }
+        } 
         
-        // Try 2: FMP (fallback)
+        // Try 4: FMP (Last Resort)
         if (!vixData && FMP_API_KEY) {
             try {
-                logger.info(`[2/2] Trying FMP for VIX proxy...`);
+                logger.info(`[4/4] Trying FMP for VIX proxy...`);
                 vixData = await fetchVIXFromFMP();
                 if (vixData && vixData.value) {
                     source = vixData.source;
@@ -119,9 +239,7 @@ async function fetchVIX() {
             } catch (error) {
                 logger.warn(`⚠️  FMP failed: ${error.message}`);
             }
-        } else if (!vixData) {
-            logger.info(`⚠️  FMP not configured (FMP_API_KEY missing)`);
-        }
+        } 
         
         // If all sources failed
         if (!vixData || !vixData.value) {

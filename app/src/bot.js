@@ -9,7 +9,8 @@ class TradingBot {
         this.scheduledTasks = [];
         this.lastRun = null;
         this.isCycleRunning = false;
-        this.cronExpression = '*/15 9-16 * * 1-5'; // Made public for reference
+        // Run every hour at minute 0, between 09:00 and 16:59, Mon-Fri (Market Hours)
+        this.cronExpression = '0 9-16 * * 1-5'; 
         this.nextRun = null; // We'll try to calculate this
     }
 
@@ -41,7 +42,22 @@ class TradingBot {
 
         this.scheduledTasks.push(tradeTask);
         this.calculateNextRun();
-        logger.info('✅ Trading Bot Scheduler Active: Running every 15 mins during market hours.');
+        logger.info('✅ Trading Bot Scheduler Active: Running hourly (09:00-16:00) Mon-Fri.');
+    }
+
+    /**
+     * Update schedule and restart bot
+     * @param {string} newCronExpression 
+     */
+    updateSchedule(newCronExpression) {
+        logger.info(`Updating bot schedule to: ${newCronExpression}`);
+        this.cronExpression = newCronExpression;
+        
+        if (this.scheduledTasks.length > 0) {
+            this.stop();
+            this.start();
+        }
+        return true;
     }
 
     /**

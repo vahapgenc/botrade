@@ -1,4 +1,5 @@
 const axios = require('axios');
+const yahooFinance = require('yahoo-finance2').default; // Using v2 wrapper
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
 const twsClient = require('../ibkr/twsClient');
@@ -11,7 +12,52 @@ const FMP_API_KEY = process.env.FMP_API_KEY;
 const YAHOO_FINANCE_BASE_URL = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 /**
- * Fetch from Interactive Brokers TWS (Primary - Most Reliable)
+ * Fetch from Yahoo Finance (Primary - Free & Reliable)
+ */
+async function fetchFromYahooFinance(ticker, limit = 250) {
+    // Determine start date based on limit (approximate trading days)
+    // 250 trading days ~= 1 year
+    // limit is number of candles
+    const endDate = new Date();
+    const startDate = new Date();
+    const daysBack = Math.ceil(limit * 1.5) + 10; // Add buffer for weekends/holidays
+    startDate.setDate(endDate.getDate() - daysBack);
+    
+    // Using yahoo-finance2 library
+    const queryOptions = {
+        period1: startDate.toISOString().split('T')[0], // YYYY-MM-DD
+        period2: endDate.toISOString().split('T')[0],   // YYYY-MM-DD
+        interval: '1d'
+    };
+    
+    const result = await yahooFinance.historical(ticker, queryOptions);
+
+    if (!result || result.length === 0) {
+        throw new Error('No data returned from Yahoo Finance');
+    }
+
+    // Convert to standard format
+    // Yahoo finance 2 returns: { date, open, high, low, close, adjClose, volume }
+    const candles = result.map(candle => ({
+        date: candle.date.toISOString().split('T')[0],
+        timestamp: new Date(candle.date).getTime(),
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume
+    }));
+
+    // Sort descending (newest first) and limit
+    // historical() usually returns oldest first. 
+    return candles.reverse().slice(0, limit);
+}
+// Remove old fetchFromYahooFinance if present lower down
+// (It was previously defined near the bottom, I will assume it's gone or I replaced it higher up.
+// Actually, I inserted the new one at the top. I should verify if the old one exists at the bottom.)
+
+/**
+ * Fetch from Interactive Brokers TWS (Secondary)
  */
 async function fetchFromIBKR(ticker, limit = 250) {
     try {
@@ -81,11 +127,20 @@ async function fetchFromAlphaVantage(ticker, limit = 250) {
  * Fetch from FMP (Fallback)
  */
 async function fetchFromFMP(ticker, limit = 250) {
-    const url = `${FMP_BASE_URL}/historical-price-eod/full`;
+    if (!FMP_API_KEY) {
+        throw new Error('FMP_API_KEY is not configured');
+    }
+
+    // Correct endpoint for historical price
+    const url = `${FMP_BASE_URL}/historical-price-full/${ticker}`;
     const params = {
-        symbol: ticker,
         apikey: FMP_API_KEY
     };
+    
+    // Note: FMP usually returns full history for free tier, or 5 years.
+    // We filter result in memory.
+    
+    logger.info(`[FMP] Fetching historical data for ${ticker}`);
     
     const response = await axios.get(url, { params, timeout: 5000 });
     
@@ -94,6 +149,7 @@ async function fetchFromFMP(ticker, limit = 250) {
     }
     
     let historical = response.data.historical || response.data;
+
     
     if (!historical || historical.length === 0) {
         throw new Error('No historical data available');
@@ -114,65 +170,14 @@ async function fetchFromFMP(ticker, limit = 250) {
         }));
 }
 
+// (Broken duplicate fetchFromYahooFinance removed)
+
+// Remove old fetchFromYahooFinance
+// (Function removed)
+
 /**
- * Fetch from Yahoo Finance (Fallback - No API Key required usually)
+ * Main entry point for historical data
  */
-async function fetchFromYahooFinance(ticker, limit = 250) {
-    // Yahoo Finance requires a range, e.g., "1y", "5d", etc.
-    // 250 days is approx 1 year
-    const range = limit > 300 ? '2y' : '1y';
-    const interval = '1d';
-    
-    // Yahoo finance often requires a "crumb" and cookie now, but sometimes this simple endpoint works for historical
-    // If it fails with 401/403, we know it's blocked.
-    const url = `${YAHOO_FINANCE_BASE_URL}/${ticker}`;
-    const params = {
-        interval: interval,
-        range: range
-    };
-    
-    // We need to spoof a User-Agent to avoid immediate blocking
-    const response = await axios.get(url, { 
-        params, 
-        timeout: 5000,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-    });
-
-    if (!response.data || !response.data.chart || !response.data.chart.result || response.data.chart.result.length === 0) {
-        throw new Error('Invalid response from Yahoo Finance');
-    }
-
-    const result = response.data.chart.result[0];
-    const meta = result.meta;
-    const timestamps = result.timestamp;
-    const quote = result.indicators.quote[0];
-    
-    if (!timestamps || !quote) {
-        throw new Error('No price data in Yahoo Finance response');
-    }
-
-    // Combine into objects
-    const candles = timestamps.map((ts, i) => {
-        // Skip incomplete data
-        if (quote.close[i] === null) return null;
-        
-        return {
-            date: new Date(ts * 1000).toISOString().split('T')[0],
-            timestamp: ts * 1000,
-            open: quote.open[i],
-            high: quote.high[i],
-            low: quote.low[i],
-            close: quote.close[i],
-            volume: quote.volume[i] || 0
-        };
-    }).filter(c => c !== null);
-
-    // Sort descending (newest first) and limit
-    return candles.reverse().slice(0, limit);
-}
-
 async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
     try {
         const cacheKey = `market_data:${ticker}:${timeframe}:${limit}`;
@@ -190,32 +195,32 @@ async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
         let source = null;
         let errors = [];
         
-        // Try 1: Interactive Brokers TWS (primary - most reliable, no API limits)
+        // Try 1: Yahoo Finance (Best Free Choice - Primary as requested)
         try {
-            logger.info(`[1/4] Trying IBKR for ${ticker}...`);
-            result = await fetchFromIBKR(ticker, limit);
+            logger.info(`[1/4] Trying Yahoo Finance for ${ticker}...`);
+            result = await fetchFromYahooFinance(ticker, limit);
             if (result && result.length > 0) {
-                source = 'Interactive Brokers';
-                logger.info(`✅ IBKR returned ${result.length} candles`);
+                source = 'Yahoo Finance';
+                logger.info(`✅ Yahoo Finance returned ${result.length} candles`);
             }
         } catch (error) {
-            const msg = `IBKR: ${error.message}`;
-            logger.warn(`⚠️  IBKR failed: ${error.message}`);
+            const msg = `Yahoo Finance: ${error.message}`;
+            logger.warn(`⚠️  Yahoo Finance failed: ${error.message}`);
             errors.push(msg);
         }
         
-        // Try 2: Yahoo Finance (Best Free Fallback)
+        // Try 2: Interactive Brokers TWS (Secondary)
         if (!result) {
             try {
-                logger.info(`[2/4] Trying Yahoo Finance for ${ticker}...`);
-                result = await fetchFromYahooFinance(ticker, limit);
+                logger.info(`[2/4] Trying IBKR for ${ticker}...`);
+                result = await fetchFromIBKR(ticker, limit);
                 if (result && result.length > 0) {
-                    source = 'Yahoo Finance';
-                    logger.info(`✅ Yahoo Finance returned ${result.length} candles`);
+                    source = 'Interactive Brokers';
+                    logger.info(`✅ IBKR returned ${result.length} candles`);
                 }
             } catch (error) {
-                const msg = `Yahoo Finance: ${error.message}`;
-                logger.warn(`⚠️  Yahoo Finance failed: ${error.message}`);
+                const msg = `IBKR: ${error.message}`;
+                logger.warn(`⚠️  IBKR failed: ${error.message}`);
                 errors.push(msg);
             }
         }
@@ -235,8 +240,12 @@ async function getHistoricalData(ticker, timeframe = 'daily', limit = 250) {
                 errors.push(msg);
             }
         } else if (!result) {
-            logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
-            errors.push('Alpha Vantage: API Key missing');
+            // Only log if we haven't found data yet AND api key is missing
+             if (!ALPHA_VANTAGE_API_KEY) {
+                // Not really an error if we found data elsewhere
+                // logger.debug(...)
+             }
+             errors.push('Alpha Vantage: API Key missing');
         }
         
         // Try 4: FMP (Last Resort)
@@ -422,119 +431,8 @@ async function getMultipleQuotes(tickers) {
 }
 
 async function getStockQuote(ticker) {
-    try {
-        const cacheKey = `stock_quote:${ticker}`;
-        
-        // Check cache (1 minute for real-time data)
-        const cached = await getCache(cacheKey);
-        if (cached) {
-            return cached;
-        }
-        
-        // Try Yahoo Finance first (free, no API key needed)
-        try {
-            const url = `${YAHOO_FINANCE_BASE_URL}/${ticker}`;
-            const response = await axios.get(url, {
-                params: {
-                    interval: '1d',
-                    range: '1d'
-                },
-                timeout: 5000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0'
-                }
-            });
-            
-            if (response.data && response.data.chart && response.data.chart.result && response.data.chart.result.length > 0) {
-                const data = response.data.chart.result[0];
-                const meta = data.meta;
-                const quote = data.indicators.quote[0];
-                
-                const currentPrice = meta.regularMarketPrice || quote.close[quote.close.length - 1];
-                const previousClose = meta.previousClose || meta.chartPreviousClose;
-                const change = currentPrice - previousClose;
-                const changePercent = (change / previousClose) * 100;
-                
-                const result = {
-                    ticker: meta.symbol,
-                    companyName: meta.longName || meta.shortName || ticker,
-                    price: parseFloat(currentPrice) || 0,
-                    change: parseFloat(change) || 0,
-                    changePercent: parseFloat(changePercent) || 0,
-                    volume: parseInt(quote.volume[quote.volume.length - 1]) || 0,
-                    marketCap: meta.marketCap || 0,
-                    sector: null, // Yahoo doesn't provide in chart API
-                    industry: null,
-                    dayHigh: parseFloat(meta.regularMarketDayHigh) || 0,
-                    dayLow: parseFloat(meta.regularMarketDayLow) || 0,
-                    yearHigh: parseFloat(meta.fiftyTwoWeekHigh) || 0,
-                    yearLow: parseFloat(meta.fiftyTwoWeekLow) || 0,
-                    pe: null,
-                    eps: null,
-                    previousClose: parseFloat(previousClose) || 0,
-                    timestamp: new Date()
-                };
-                
-                // Cache for 1 minute (60 seconds)
-                await setCache(cacheKey, result, 60);
-                logger.info(`✅ Yahoo Finance quote for ${ticker}: $${result.price}`);
-                
-                return result;
-            }
-        } catch (yahooError) {
-            logger.warn(`Yahoo Finance failed for ${ticker}: ${yahooError.message}`);
-        }
-        
-        // Fallback to FMP if Yahoo fails
-        if (FMP_API_KEY) {
-            const url = `${FMP_BASE_URL}/quote/${ticker}`;
-            const response = await axios.get(url, {
-                params: { 
-                    apikey: FMP_API_KEY 
-                },
-                timeout: 5000
-            });
-            
-            if (!response.data || response.data.length === 0) {
-                logger.warn(`No quote data for ${ticker} from FMP`);
-                return null;
-            }
-            
-            const quote = response.data[0];
-            const result = {
-                ticker: quote.symbol,
-                companyName: quote.name,
-                price: parseFloat(quote.price) || 0,
-                change: parseFloat(quote.change) || 0,
-                changePercent: parseFloat(quote.changesPercentage) || 0,
-                volume: parseInt(quote.volume) || 0,
-                marketCap: quote.marketCap || 0,
-                sector: quote.sector || null,
-                industry: quote.industry || null,
-                dayHigh: parseFloat(quote.dayHigh) || 0,
-                dayLow: parseFloat(quote.dayLow) || 0,
-                yearHigh: parseFloat(quote.yearHigh) || 0,
-                yearLow: parseFloat(quote.yearLow) || 0,
-                pe: parseFloat(quote.pe) || null,
-                eps: parseFloat(quote.eps) || null,
-                previousClose: parseFloat(quote.previousClose) || 0,
-                timestamp: quote.timestamp ? new Date(quote.timestamp * 1000) : new Date()
-            };
-            
-            // Cache for 1 minute (60 seconds)
-            await setCache(cacheKey, result, 60);
-            logger.info(`✅ FMP quote for ${ticker}: $${result.price}`);
-            
-            return result;
-        }
-        
-        logger.error(`No API available for ${ticker}`);
-        return null;
-        
-    } catch (error) {
-        logger.error(`Error fetching stock quote for ${ticker}:`, error.message);
-        return null;
-    }
+    // Forward to getCurrentPrice which handles multiple sources including Yahoo (v2) and FMP
+    return await getCurrentPrice(ticker);
 }
 
 module.exports = {

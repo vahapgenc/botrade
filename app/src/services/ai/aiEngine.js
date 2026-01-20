@@ -1,6 +1,6 @@
 const OpenAI = require('openai');
 const logger = require('../../utils/logger');
-const prisma = require('../../database/prisma');
+const { prisma } = require('../../database/prisma');
 const { analyzeTechnicals } = require('../technical/technicalAnalyzer');
 const { getFundamentals } = require('../fundamental/fundamentalAnalyzer');
 const { getNewsForTicker, getSentimentSignal } = require('../news/newsAnalyzer');
@@ -81,6 +81,11 @@ async function makeAIDecision(ticker, companyName, tradingType = 'BOTH', options
             optionsData
         });
         
+        // Log the full prompt/input sent to the AI model
+        logger.info(`---------- AI INPUT PROMPT FOR ${ticker} ----------`);
+        logger.info(prompt);
+        logger.info(`---------------------------------------------------`);
+
         logger.info(`Sending request to OpenAI (${MODEL})...`);
         
         // Call OpenAI GPT-4
