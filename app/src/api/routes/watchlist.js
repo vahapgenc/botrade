@@ -42,9 +42,10 @@ router.get('/:id', async (req, res) => {
       where: { id: parseInt(id) },
       include: {
         stocks: {
-          orderBy: {
-            addedAt: 'desc'
-          }
+          orderBy: [
+            { rank: 'asc' },
+            { addedAt: 'desc' }
+          ]
         }
       }
     });
@@ -215,7 +216,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/stocks', async (req, res) => {
   try {
     const { id } = req.params;
-    const { ticker, companyName, sector, notes } = req.body;
+    const { ticker, companyName, sector, notes, rating, rank } = req.body;
 
     if (!ticker || ticker.trim() === '') {
       return res.status(400).json({
@@ -275,7 +276,9 @@ router.post('/:id/stocks', async (req, res) => {
         companyName: finalCompanyName,
         sector: finalSector,
         priceWhenAdded: priceWhenAdded,
-        notes: notes?.trim() || null
+        notes: notes?.trim() || null,
+        rating: rating || null,
+        rank: rank ? parseInt(rank) : null
       }
     });
 
@@ -287,6 +290,39 @@ router.post('/:id/stocks', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error adding stock to watchlist:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Update stock in watchlist
+router.put('/:id/stocks/:stockId', async (req, res) => {
+  try {
+    const { id, stockId } = req.params;
+    const { rating, rank, notes } = req.body;
+
+    const stock = await prisma.watchlistStock.update({
+      where: {
+        id: parseInt(stockId),
+        watchlistId: parseInt(id)
+      },
+      data: {
+        rating: rating || null,
+        rank: rank ? parseInt(rank) : null,
+        notes: notes?.trim() || null
+      }
+    });
+
+    logger.info(`Updated stock ID ${stockId} in watchlist ID: ${id}`);
+
+    res.json({
+      success: true,
+      stock: stock
+    });
+  } catch (error) {
+    logger.error('Error updating stock in watchlist:', error);
     res.status(500).json({
       success: false,
       error: error.message

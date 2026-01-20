@@ -467,33 +467,43 @@
         </div>
     </div>
 
-    <!-- Add Stock Modal -->
-    <div class="modal" id="addStockModal">
+    <!-- Stock Modal (Add/Edit) -->
+    <div class="modal" id="stockModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Add Stock to Watchlist</h3>
-                <button class="btn-icon" onclick="hideAddStockModal()">✖</button>
+                <h3 id="stockModalTitle">Add Stock to Watchlist</h3>
+                <button class="btn-icon" onclick="hideStockModal()">✖</button>
             </div>
-            <form id="addStockForm" onsubmit="addStock(event)">
+            <form id="stockForm" onsubmit="saveStock(event)">
+                <input type="hidden" id="stockId">
                 <div class="form-group">
                     <label for="stockTicker">Ticker Symbol *</label>
                     <input type="text" id="stockTicker" required placeholder="e.g., AAPL" style="text-transform: uppercase;">
                 </div>
-                <div class="form-group">
-                    <label for="stockCompanyName">Company Name</label>
-                    <input type="text" id="stockCompanyName" placeholder="Will be fetched automatically if empty">
-                </div>
-                <div class="form-group">
-                    <label for="stockSector">Sector</label>
-                    <input type="text" id="stockSector" placeholder="Will be fetched automatically if empty">
+                <div class="form-group" style="display: flex; gap: 1rem;">
+                    <div style="flex: 1;">
+                        <label for="stockRank">Rank</label>
+                        <input type="number" id="stockRank" min="1" placeholder="e.g., 1">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="stockRating">Rating</label>
+                        <select id="stockRating" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; background: white;">
+                            <option value="">Select Rating...</option>
+                            <option value="STRONG BUY">Strong Buy</option>
+                            <option value="BUY">Buy</option>
+                            <option value="HOLD">Hold</option>
+                            <option value="SELL">Sell</option>
+                            <option value="STRONG SELL">Strong Sell</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="stockNotes">Notes</label>
                     <textarea id="stockNotes" placeholder="Optional notes"></textarea>
                 </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="hideAddStockModal()">Cancel</button>
-                    <button type="submit" class="btn btn-success">Add Stock</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideStockModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success" id="stockSubmitBtn">Save Stock</button>
                 </div>
             </form>
         </div>

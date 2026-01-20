@@ -228,6 +228,8 @@ model WatchlistStock {
   priceWhenAdded     Decimal? @db.Decimal(10, 2)
   addedAt            DateTime @default(now())
   notes              String?  @db.Text
+  rating             String?  // e.g., STRONG BUY, BUY, HOLD
+  rank               Int?     // e.g., 1, 2, 3 for ordered lists like Alpha Picks
   
   watchlist          Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
 

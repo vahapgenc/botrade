@@ -209,7 +209,7 @@ function renderStocks() {
                 <h1 class="page-title">${escapeHtml(currentWatchlistData.name)}</h1>
                 <p class="page-subtitle">${escapeHtml(currentWatchlistData.description || 'No description')}</p>
             </div>
-            <button class="btn btn-success" onclick="showAddStockModal(${currentWatchlistData.id})">
+            <button class="btn btn-success" onclick="showStockModal()">
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; vertical-align: middle;">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
@@ -222,7 +222,7 @@ function renderStocks() {
                 <div class="empty-state-icon">📈</div>
                 <h3>No Stocks Yet</h3>
                 <p>Add stocks to this watchlist to start tracking</p>
-                <button class="btn btn-success" onclick="showAddStockModal(${currentWatchlistData.id})" style="margin-top: 1rem;">
+                <button class="btn btn-success" onclick="showStockModal()" style="margin-top: 1rem;">
                     Add Stock
                 </button>
             </div>
@@ -230,6 +230,7 @@ function renderStocks() {
             <table class="stock-table">
                 <thead>
                     <tr>
+                        <th>Rank</th>
                         <th>Symbol</th>
                         <th>Company Name</th>
                         <th>Price</th>
@@ -237,6 +238,7 @@ function renderStocks() {
                         <th>Since Added</th>
                         <th>Market Cap</th>
                         <th>Sector</th>
+                        <th>Rating</th>
                         <th>AI Analysis</th>
                         <th>Confidence</th>
                         <th>Actions</th>
@@ -282,9 +284,17 @@ function renderStockRow(stock) {
     let aiBadgeClass = 'ai-hold';
     if (recommendation === 'BUY') aiBadgeClass = 'ai-buy';
     else if (recommendation === 'SELL') aiBadgeClass = 'ai-sell';
+
+    const getRatingClass = (r) => {
+        if (!r) return '';
+        if (r.toUpperCase().includes('STRONG')) return 'ai-buy';
+        if (r.toUpperCase().includes('BUY')) return 'ai-buy';
+        return '';
+    };
     
     return `
         <tr>
+            <td style="font-weight: bold;">${stock.rank || '-'}</td>
             <td>
                 <span class="stock-symbol" title="${escapeHtml(stock.companyName || stock.ticker)}">
                     ${escapeHtml(stock.ticker)}
@@ -301,6 +311,11 @@ function renderStockRow(stock) {
             <td class="market-cap">${marketCap}</td>
             <td>${escapeHtml(stock.sector || 'N/A')}</td>
             <td>
+                <span class="ai-badge ${getRatingClass(stock.rating)}" style="width: auto; padding: 0.25rem 0.5rem; white-space: nowrap;">
+                    ${escapeHtml(stock.rating || '-')}
+                </span>
+            </td>
+            <td>
                 <span class="ai-badge ${aiBadgeClass}">${recommendation}</span>
             </td>
             <td>
@@ -312,6 +327,9 @@ function renderStockRow(stock) {
                 </div>
             </td>
             <td>
+                <button class="btn-icon" onclick="showStockModal(${stock.id})" title="Edit Stock">
+                    ✏️
+                </button>
                 <button class="btn-icon" onclick="window.open('/options.html?ticker=${stock.ticker}', '_blank')" title="Options Analysis">
                     📊
                 </button>
@@ -405,24 +423,41 @@ async function deleteWatchlist(id) {
     }
 }
 
-// Show add stock modal
-function showAddStockModal(watchlistId) {
-    currentWatchlistId = watchlistId;
-    document.getElementById('stockTicker').value = '';
-    document.getElementById('stockNotes').value = '';
-    document.getElementById('addStockModal').classList.add('active');
+// Show stock modal (add or edit)
+function showStockModal(stockId = null) {
+    const isEdit = stockId !== null;
+    const stock = isEdit ? currentWatchlistData.stocks.find(s => s.id === stockId) : null;
+    
+    document.getElementById('stockId').value = isEdit ? stockId : '';
+    document.getElementById('stockModalTitle').textContent = isEdit ? 'Edit Stock' : 'Add Stock to Watchlist';
+    document.getElementById('stockSubmitBtn').textContent = isEdit ? 'Update Stock' : 'Add Stock';
+    
+    // Ticker field
+    const tickerInput = document.getElementById('stockTicker');
+    tickerInput.value = isEdit ? stock.ticker : '';
+    tickerInput.disabled = isEdit; // Disable ticker editing
+    
+    // Other fields
+    document.getElementById('stockRank').value = isEdit ? (stock.rank || '') : '';
+    document.getElementById('stockRating').value = isEdit ? (stock.rating || '') : '';
+    document.getElementById('stockNotes').value = isEdit ? (stock.notes || '') : '';
+    
+    document.getElementById('stockModal').classList.add('active');
 }
 
-// Hide add stock modal
-function hideAddStockModal() {
-    document.getElementById('addStockModal').classList.remove('active');
+// Hide stock modal
+function hideStockModal() {
+    document.getElementById('stockModal').classList.remove('active');
 }
 
-// Add stock
-async function addStock(event) {
+// Save stock (Add or Update)
+async function saveStock(event) {
     event.preventDefault();
     
+    const stockId = document.getElementById('stockId').value;
     const ticker = document.getElementById('stockTicker').value.toUpperCase().trim();
+    const rank = document.getElementById('stockRank').value;
+    const rating = document.getElementById('stockRating').value;
     const notes = document.getElementById('stockNotes').value;
     
     if (!currentWatchlistId) {
@@ -431,29 +466,47 @@ async function addStock(event) {
     }
     
     try {
-        const response = await fetch(`/api/watchlist/${currentWatchlistId}/stocks`, {
-            method: 'POST',
+        const isEdit = !!stockId;
+        const url = isEdit 
+            ? `/api/watchlist/${currentWatchlistId}/stocks/${stockId}`
+            : `/api/watchlist/${currentWatchlistId}/stocks`;
+        
+        const method = isEdit ? 'PUT' : 'POST';
+        
+        const body = {
+            rating, 
+            rank: rank || null,
+            notes
+        };
+        
+        // Only include ticker for new stocks
+        if (!isEdit) {
+            body.ticker = ticker;
+        }
+        
+        const response = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ticker, notes })
+            body: JSON.stringify(body)
         });
         
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.message || 'Failed to add stock');
+            throw new Error(error.message || 'Failed to save stock');
         }
         
-        hideAddStockModal();
+        hideStockModal();
         
-        // Reload the watchlist if we're viewing it
-        if (currentWatchlistData && currentWatchlistData.id === currentWatchlistId) {
-            await loadWatchlistStocks(currentWatchlistId);
+        // Reload the watchlist
+        await loadWatchlistStocks(currentWatchlistId);
+        
+        // Reload watchlists to update counts if added
+        if (!isEdit) {
+            await loadWatchlists();
         }
-        
-        // Reload watchlists to update counts
-        await loadWatchlists();
     } catch (error) {
-        console.error('Error adding stock:', error);
-        alert('Failed to add stock: ' + error.message);
+        console.error('Error saving stock:', error);
+        alert('Failed to save stock: ' + error.message);
     }
 }
 
