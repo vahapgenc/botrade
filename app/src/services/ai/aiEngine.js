@@ -544,7 +544,7 @@ async function storeDecision(decision) {
                 timeHorizon: decision.timeHorizon,
                 quantity: decision.quantity,
                 suggestedPrice: decision.suggestedPrice,
-                targetPrice: decision.targetPrice,
+                takeProfit: decision.targetPrice, // Database uses takeProfit, not targetPrice
                 stopLoss: decision.stopLoss,
                 optionsStrategy: decision.optionsStrategy,
                 optionsLegs: decision.optionsLegs,

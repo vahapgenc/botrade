@@ -47,8 +47,8 @@ function nextStep() {
     } else if (currentStep === 2) {
         goToStep(3);
         fetchNewsData();
-    } else if (currentStep === 3 || currentStep === 4) {
-        goToStep(currentStep + 1);
+    } else if (currentStep === 3) {
+        goToStep(4);
     }
 }
 
@@ -79,15 +79,9 @@ function goToStep(step) {
     
     currentStep = step;
     
-    // Special handling for Step 5 - populate AI summary
-    if (step === 5 && aiData && aiData.decision) {
-        populateStep5Summary();
-    }
-    
     // Update buttons
     document.getElementById('prevBtn').disabled = (step === 1);
-    document.getElementById('nextBtn').style.display = (step === 5) ? 'none' : 'inline-block';
-    document.getElementById('executeBtn').style.display = (step === 5) ? 'inline-block' : 'none';
+    document.getElementById('nextBtn').style.display = (step === 4) ? 'none' : 'inline-block';
 }
 
 // Step 1: Fetch Stock Info
@@ -360,6 +354,7 @@ function renderNewsResults(data) {
 // Step 4: AI Analysis
 async function runAIAnalysis() {
     document.getElementById('runAIBtn').disabled = true;
+    document.getElementById('aiGeneratePrompt').style.display = 'none';
     document.getElementById('step4Loading').classList.add('active');
     document.getElementById('aiResults').style.display = 'none';
     
@@ -394,10 +389,85 @@ async function runAIAnalysis() {
         if (data && data.ticker) {
             aiData = data;
             
-            // Display AI recommendation
-            document.getElementById('aiDecision').textContent = `${aiData.decision} ${symbol}`;
+            console.log('AI Decision received:', aiData);
+            
+            // Display AI recommendation - accessible for color blindness
+            const decisionText = aiData.decision ? aiData.decision.toUpperCase() : 'NO RECOMMENDATION';
+            const tickerText = aiData.ticker ? aiData.ticker.toUpperCase() : '';
+            
+            // Determine color, icon, and background based on decision
+            let actionColor = '#6b7280';
+            let actionBg = '#f3f4f6';
+            let actionIcon = '⏸️';
+            let actionLabel = 'NEUTRAL';
+            
+            if (decisionText.includes('BUY')) {
+                actionColor = '#10b981';
+                actionBg = '#d1fae5';
+                actionIcon = '📈';
+                actionLabel = 'BULLISH';
+            } else if (decisionText.includes('SELL')) {
+                actionColor = '#ef4444';
+                actionBg = '#fee2e2';
+                actionIcon = '📉';
+                actionLabel = 'BEARISH';
+            } else if (decisionText.includes('HOLD')) {
+                actionIcon = '⏸️';
+                actionLabel = 'NEUTRAL';
+            }
+            
+            const decisionElement = document.getElementById('aiDecision');
+            decisionElement.innerHTML = `
+                <div style="background: ${actionBg}; padding: 1.5rem; border-radius: 0.75rem; border: 3px solid ${actionColor};">
+                    <div style="font-size: 1rem; font-weight: 600; color: #6b7280; margin-bottom: 0.5rem; text-transform: uppercase;" 
+                         title="Market sentiment indicator">
+                        ${actionIcon} ${actionLabel}
+                    </div>
+                    <div style="font-size: 3rem; font-weight: 900; color: ${actionColor}; margin-bottom: 0.5rem;"
+                         title="AI Trading Recommendation">
+                        ${decisionText}
+                    </div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: #374151; border-top: 2px solid ${actionColor}; padding-top: 0.5rem; margin-top: 0.5rem;"
+                         title="Stock ticker symbol">
+                        ${tickerText}
+                    </div>
+                </div>
+            `;
+            
             document.getElementById('aiConfidence').textContent = aiData.confidence + '%';
-            document.getElementById('confidenceFill').style.width = `${aiData.confidence}%`;
+            const confidenceFill = document.getElementById('confidenceFill');
+            confidenceFill.style.width = `${aiData.confidence}%`;
+            
+            // Color confidence bar with patterns and labels for accessibility
+            let confidenceLabel = '';
+            let confidenceIcon = '';
+            
+            if (aiData.confidence >= 80) {
+                confidenceFill.style.background = '#10b981'; // Green
+                confidenceLabel = 'HIGH';
+                confidenceIcon = '✓✓✓';
+                confidenceFill.title = 'High Confidence (80%+): Strong signal';
+            } else if (aiData.confidence >= 60) {
+                confidenceFill.style.background = '#f59e0b'; // Orange
+                confidenceLabel = 'MEDIUM';
+                confidenceIcon = '✓✓';
+                confidenceFill.title = 'Medium Confidence (60-79%): Moderate signal';
+            } else {
+                confidenceFill.style.background = '#ef4444'; // Red
+                confidenceLabel = 'LOW';
+                confidenceIcon = '✓';
+                confidenceFill.title = 'Low Confidence (<60%): Weak signal, exercise caution';
+            }
+            
+            // Add confidence label next to percentage
+            const confidenceElement = document.getElementById('aiConfidence');
+            confidenceElement.innerHTML = `
+                ${aiData.confidence}% 
+                <span style="margin-left: 0.5rem; font-size: 0.875rem; padding: 0.25rem 0.5rem; background: ${confidenceFill.style.background}; color: white; border-radius: 0.25rem; font-weight: 700;"
+                      title="${confidenceFill.title}">
+                    ${confidenceIcon} ${confidenceLabel}
+                </span>
+            `;
             
             if (aiData.quantity) document.getElementById('aiQuantity').textContent = aiData.quantity;
             if (aiData.suggestedPrice) document.getElementById('aiEntry').textContent = '$' + aiData.suggestedPrice.toFixed(2);
@@ -745,4 +815,408 @@ async function executeOrder() {
         document.getElementById('executeBtn').disabled = false;
         document.getElementById('executeBtn').textContent = '✓ Execute Order';
     }
+}
+// Modal Functions
+function openStockOrderModal() {
+    // Pre-fill with AI recommendations
+    if (aiData) {
+        document.getElementById('modalStockAction').textContent = aiData.decision || 'BUY';
+        document.getElementById('modalStockQuantity').textContent = aiData.quantity || '-';
+        document.getElementById('modalStockEntry').textContent = aiData.suggestedPrice ? `$${aiData.suggestedPrice.toFixed(2)}` : '-';
+        
+        document.getElementById('stockAction').value = aiData.decision || 'BUY';
+        document.getElementById('stockQuantity').value = aiData.quantity || 1;
+        
+        if (aiData.suggestedPrice) {
+            document.getElementById('stockLimitPrice').value = aiData.suggestedPrice.toFixed(2);
+        }
+    }
+    
+    updateStockOrderValue();
+    document.getElementById('stockOrderModal').style.display = 'flex';
+}
+
+function closeStockOrderModal() {
+    document.getElementById('stockOrderModal').style.display = 'none';
+}
+
+function openOptionsOrderModal() {
+    const modal = document.getElementById('optionsOrderModal');
+    
+    // Check if AI recommended an options strategy
+    if (aiData && aiData.optionsTrade && aiData.optionsTrade.legs && aiData.optionsTrade.legs.length > 0) {
+        const strategy = aiData.optionsTrade;
+        const legs = strategy.legs;
+        
+        // Build strategy description for multi-leg strategies
+        let strategyLegsHTML = '';
+        legs.forEach((leg, idx) => {
+            const legType = `${leg.action} ${leg.contracts}x ${leg.type}`;
+            strategyLegsHTML += `
+                <div style="padding: 0.5rem; background: rgba(255,255,255,0.2); border-radius: 0.25rem; margin-top: 0.5rem;">
+                    <strong>Leg ${idx + 1}:</strong> ${legType} @ $${leg.strike} (${leg.expiry})
+                    ${leg.premium ? `- Premium: $${leg.premium.toFixed(2)}` : ''}
+                </div>
+            `;
+        });
+        
+        // Show AI recommendation banner
+        let bannerHTML = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+                <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">🤖 AI RECOMMENDED STRATEGY</div>
+                <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem;">${strategy.strategy.replace(/_/g, ' ')}</div>
+                
+                ${strategyLegsHTML}
+                
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; font-size: 0.9rem; margin-top: 1rem;">
+                    <div>
+                        <div style="opacity: 0.8;">Max Profit</div>
+                        <div style="font-weight: 700;">$${strategy.maxProfit?.toFixed(2) || 'Unlimited'}</div>
+                    </div>
+                    <div>
+                        <div style="opacity: 0.8;">Max Loss</div>
+                        <div style="font-weight: 700;">$${strategy.maxLoss?.toFixed(2) || 'N/A'}</div>
+                    </div>
+                    <div>
+                        <div style="opacity: 0.8;">Breakeven</div>
+                        <div style="font-weight: 700;">$${strategy.breakeven?.toFixed(2) || 'N/A'}</div>
+                    </div>
+                    <div>
+                        <div style="opacity: 0.8;">Win Probability</div>
+                        <div style="font-weight: 700;">${aiData.probabilitySuccess || 65}%</div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.3); font-size: 0.875rem; opacity: 0.9;">
+                    💡 <strong>Tip:</strong> Use "Strategy Size" to scale all legs proportionally (1x, 2x, 3x, etc.)
+                </div>
+            </div>
+        `;
+        
+        // Insert banner at the top of modal content
+        const modalContent = modal.querySelector('.modal-content');
+        let existingBanner = modalContent.querySelector('.ai-strategy-banner');
+        if (existingBanner) existingBanner.remove();
+        
+        const bannerDiv = document.createElement('div');
+        bannerDiv.className = 'ai-strategy-banner';
+        bannerDiv.innerHTML = bannerHTML;
+        modalContent.insertBefore(bannerDiv, modalContent.children[1]); // After title
+        
+        // For multi-leg strategies, hide individual fields and show strategy scaler
+        if (legs.length > 1) {
+            // Hide individual option fields
+            document.querySelectorAll('#optionsOrderModal .form-group').forEach(group => {
+                group.style.display = 'none';
+            });
+            
+            // Show strategy scaler
+            let scalerHTML = `
+                <div class="form-group" style="display: block !important;">
+                    <label style="font-weight: 700; font-size: 1.1rem;">Strategy Size (Scale All Legs)</label>
+                    <input type="number" id="strategyScaler" class="form-input" min="1" value="1" style="font-size: 1.25rem;">
+                    <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">
+                        1x = Execute as recommended | 2x = Double all positions | 3x = Triple, etc.
+                    </div>
+                </div>
+            `;
+            
+            let existingScaler = modalContent.querySelector('.strategy-scaler-group');
+            if (existingScaler) existingScaler.remove();
+            
+            const scalerDiv = document.createElement('div');
+            scalerDiv.className = 'strategy-scaler-group';
+            scalerDiv.innerHTML = scalerHTML;
+            bannerDiv.after(scalerDiv);
+            
+            // Update order value when scaler changes
+            const scalerInput = document.getElementById('strategyScaler');
+            if (scalerInput) {
+                scalerInput.addEventListener('input', () => {
+                    const scale = parseInt(scalerInput.value) || 1;
+                    let totalCost = 0;
+                    
+                    legs.forEach(leg => {
+                        const contracts = (leg.contracts || 1) * scale;
+                        const premium = leg.premium || 0;
+                        const legCost = contracts * premium * 100; // 100 shares per contract
+                        
+                        if (leg.action === 'BUY') {
+                            totalCost += legCost;
+                        } else if (leg.action === 'SELL') {
+                            totalCost -= legCost; // Credit received
+                        }
+                    });
+                    
+                    document.getElementById('optionsOrderValue').textContent = Math.abs(totalCost).toFixed(2);
+                });
+                
+                // Trigger initial calculation
+                scalerInput.dispatchEvent(new Event('input'));
+            }
+            
+            // Store strategy data for execution
+            modal.dataset.multiLegStrategy = JSON.stringify({
+                strategy: strategy.strategy,
+                legs: legs
+            });
+            
+        } else {
+            // Single leg - show normal form with pre-filled values
+            document.querySelectorAll('#optionsOrderModal .form-group').forEach(group => {
+                group.style.display = 'block';
+            });
+            
+            const primaryLeg = legs[0];
+            
+            document.getElementById('optionsAction').value = primaryLeg.action;
+            document.getElementById('optionType').value = primaryLeg.type;
+            document.getElementById('optionContracts').value = primaryLeg.contracts || 1;
+            document.getElementById('strikePrice').value = primaryLeg.strike?.toFixed(2) || '';
+            
+            if (primaryLeg.expiry) {
+                document.getElementById('expirationDate').value = primaryLeg.expiry;
+            }
+            
+            if (primaryLeg.premium) {
+                document.getElementById('optionsOrderType').value = 'LMT';
+                document.getElementById('optionsLimitPrice').value = primaryLeg.premium.toFixed(2);
+                document.getElementById('optionsLimitPriceGroup').style.display = 'block';
+            }
+            
+            // Lock fields except contracts
+            document.getElementById('optionsAction').disabled = true;
+            document.getElementById('optionType').disabled = true;
+            document.getElementById('strikePrice').disabled = true;
+            document.getElementById('expirationDate').disabled = true;
+            document.getElementById('optionsOrderType').disabled = true;
+            document.getElementById('optionsLimitPrice').disabled = true;
+            document.getElementById('optionContracts').disabled = false;
+            document.getElementById('optionContracts').focus();
+            
+            modal.dataset.multiLegStrategy = '';
+        }
+        
+    } else {
+        // No AI recommendation - allow manual entry
+        document.querySelectorAll('#optionsOrderModal .form-group').forEach(group => {
+            group.style.display = 'block';
+        });
+        
+        if (stockData && stockData.price) {
+            document.getElementById('strikePrice').value = stockData.price.toFixed(2);
+        }
+        
+        const expirationDate = new Date();
+        expirationDate.setDate(expirationDate.getDate() + 30);
+        document.getElementById('expirationDate').value = expirationDate.toISOString().split('T')[0];
+        
+        document.getElementById('optionsAction').disabled = false;
+        document.getElementById('optionType').disabled = false;
+        document.getElementById('optionContracts').disabled = false;
+        document.getElementById('strikePrice').disabled = false;
+        document.getElementById('expirationDate').disabled = false;
+        document.getElementById('optionsOrderType').disabled = false;
+        document.getElementById('optionsLimitPrice').disabled = false;
+        
+        modal.dataset.multiLegStrategy = '';
+    }
+    
+    updateOptionsOrderValue();
+    modal.style.display = 'flex';
+}
+
+// Remove the unlockOptionsFields function as it's no longer needed
+
+function closeOptionsOrderModal() {
+    document.getElementById('optionsOrderModal').style.display = 'none';
+}
+
+async function executeStockOrder() {
+    const symbol = stockData.ticker;
+    const action = document.getElementById('stockAction').value;
+    const quantity = parseInt(document.getElementById('stockQuantity').value);
+    const orderType = document.getElementById('stockOrderType').value;
+    const limitPrice = orderType === 'LMT' ? parseFloat(document.getElementById('stockLimitPrice').value) : null;
+    
+    if (!quantity || quantity < 1) {
+        alert('Please enter a valid quantity');
+        return;
+    }
+    
+    if (orderType === 'LMT' && (!limitPrice || limitPrice <= 0)) {
+        alert('Please enter a valid limit price');
+        return;
+    }
+    
+    const confirmMsg = `Confirm ${action} ${quantity} shares of ${symbol} at ${orderType === 'MKT' ? 'market price' : `$${limitPrice}`}?`;
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/trading/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                symbol,
+                action,
+                quantity,
+                orderType,
+                limitPrice,
+                confidence: aiData.confidence || 80
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeStockOrderModal();
+            alert(`✅ Order executed successfully!\n\nOrder ID: ${result.order.orderId}\nSymbol: ${symbol}\nAction: ${action}\nQuantity: ${quantity}`);
+            
+            // Show new analysis button
+            document.getElementById('nextBtn').style.display = 'none';
+            document.getElementById('newAnalysisBtn').style.display = 'inline-block';
+        } else {
+            alert(`❌ Order failed: ${result.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error executing stock order:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function executeOptionsOrder() {
+    const symbol = stockData.ticker;
+    const modal = document.getElementById('optionsOrderModal');
+    
+    // Check if this is a multi-leg strategy
+    const multiLegData = modal.dataset.multiLegStrategy;
+    
+    if (multiLegData && multiLegData !== '') {
+        // Multi-leg strategy execution
+        const strategyData = JSON.parse(multiLegData);
+        const scaler = parseInt(document.getElementById('strategyScaler')?.value || 1);
+        
+        if (scaler < 1) {
+            alert('Strategy size must be at least 1');
+            return;
+        }
+        
+        // Scale all legs
+        const scaledLegs = strategyData.legs.map(leg => ({
+            ...leg,
+            contracts: (leg.contracts || 1) * scaler
+        }));
+        
+        const confirmMsg = `Confirm ${strategyData.strategy.replace(/_/g, ' ')} strategy (${scaler}x):\n\n${
+            scaledLegs.map((leg, idx) => 
+                `Leg ${idx + 1}: ${leg.action} ${leg.contracts} ${leg.type} @ $${leg.strike} (${leg.expiry})`
+            ).join('\n')
+        }`;
+        
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/trading/execute-multi-leg-option', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    symbol,
+                    strategy: strategyData.strategy,
+                    legs: scaledLegs,
+                    confidence: aiData.confidence || 80
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                closeOptionsOrderModal();
+                alert(`✅ Multi-leg options strategy executed!\n\nStrategy: ${strategyData.strategy}\nLegs: ${scaledLegs.length}\nOrder IDs: ${result.orderIds?.join(', ') || result.order?.orderId || 'Pending'}`);
+                
+                document.getElementById('nextBtn').style.display = 'none';
+                document.getElementById('newAnalysisBtn').style.display = 'inline-block';
+            } else {
+                alert(`❌ Order failed: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error executing multi-leg options order:', error);
+            alert(`Error: ${error.message}`);
+        }
+        
+    } else {
+        // Single leg execution
+        const action = document.getElementById('optionsAction').value;
+        const optionType = document.getElementById('optionType').value;
+        const contracts = parseInt(document.getElementById('optionContracts').value);
+        const strikePrice = parseFloat(document.getElementById('strikePrice').value);
+        const expirationDate = document.getElementById('expirationDate').value;
+        const orderType = document.getElementById('optionsOrderType').value;
+        const limitPrice = orderType === 'LMT' ? parseFloat(document.getElementById('optionsLimitPrice').value) : null;
+        
+        if (!contracts || contracts < 1) {
+            alert('Please enter a valid number of contracts');
+            return;
+        }
+        
+        if (!strikePrice || strikePrice <= 0) {
+            alert('Please enter a valid strike price');
+            return;
+        }
+        
+        if (!expirationDate) {
+            alert('Please select an expiration date');
+            return;
+        }
+        
+        if (orderType === 'LMT' && (!limitPrice || limitPrice <= 0)) {
+            alert('Please enter a valid limit price');
+            return;
+        }
+        
+        const confirmMsg = `Confirm ${action} ${contracts} ${optionType} contract(s) of ${symbol}\nStrike: $${strikePrice}\nExpiration: ${expirationDate}\nAt ${orderType === 'MKT' ? 'market price' : `$${limitPrice} per contract`}?`;
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/trading/execute-option', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    symbol,
+                    action,
+                    optionType,
+                    contracts,
+                    strikePrice,
+                    expirationDate,
+                    orderType,
+                    limitPrice,
+                    confidence: aiData.confidence || 80
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                closeOptionsOrderModal();
+                alert(`✅ Options order executed successfully!\n\nOrder ID: ${result.order.orderId}\nSymbol: ${symbol}\nAction: ${action}\nType: ${optionType}\nContracts: ${contracts}\nStrike: $${strikePrice}`);
+                
+                // Show new analysis button
+                document.getElementById('nextBtn').style.display = 'none';
+                document.getElementById('newAnalysisBtn').style.display = 'inline-block';
+            } else {
+                alert(`❌ Order failed: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error executing options order:', error);
+            alert(`Error: ${error.message}`);
+        }
+    }
+}
+
+function startNewAnalysis() {
+    window.location.reload();
 }
