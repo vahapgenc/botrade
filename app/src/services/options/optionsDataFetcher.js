@@ -145,6 +145,98 @@ async function getNearMoneyOptions(ticker, maxExpiriesCount = 3) {
 }
 
 /**
+ * Get options at 3, 6, and 9 month target expirations for strategy comparison
+ * Returns ATM and near-the-money options for each timeframe
+ */
+async function getOptionsForStrategyAnalysis(ticker) {
+    try {
+        const chain = await getOptionsChain(ticker);
+        
+        if (!chain.underlyingPrice) {
+            throw new Error('Cannot determine underlying price');
+        }
+        
+        const currentPrice = chain.underlyingPrice;
+        const today = new Date();
+        
+        // Target dates: ~90, 180, 270 days from now
+        const targetMonths = [3, 6, 9];
+        const targetDates = targetMonths.map(months => {
+            const target = new Date(today);
+            target.setMonth(target.getMonth() + months);
+            return target;
+        });
+        
+        // Find closest expiry to each target date
+        const selectedExpiries = targetDates.map((targetDate, idx) => {
+            const closestExpiry = chain.chains.reduce((closest, expiry) => {
+                const expiryDate = new Date(expiry.expiration);
+                const currentDiff = Math.abs(expiryDate - targetDate);
+                const closestDiff = Math.abs(new Date(closest.expiration) - targetDate);
+                return currentDiff < closestDiff ? expiry : closest;
+            });
+            
+            return {
+                targetMonths: targetMonths[idx],
+                ...closestExpiry
+            };
+        });
+        
+        // Filter to near-the-money strikes (±5%)
+        const priceRange = currentPrice * 0.05;
+        const minStrike = currentPrice - priceRange;
+        const maxStrike = currentPrice + priceRange;
+        
+        const strategiesData = selectedExpiries.map(expiry => {
+            const calls = expiry.calls.filter(call => 
+                call.strike >= minStrike && call.strike <= maxStrike
+            ).sort((a, b) => Math.abs(a.strike - currentPrice) - Math.abs(b.strike - currentPrice));
+            
+            const puts = expiry.puts.filter(put => 
+                put.strike >= minStrike && put.strike <= maxStrike
+            ).sort((a, b) => Math.abs(a.strike - currentPrice) - Math.abs(b.strike - currentPrice));
+            
+            // Get ATM options
+            const atmCall = calls[0] || null;
+            const atmPut = puts[0] || null;
+            
+            // Get slightly OTM for spreads (5-10% OTM)
+            const otmCalls = expiry.calls.filter(c => c.strike > currentPrice && c.strike <= currentPrice * 1.10);
+            const otmPuts = expiry.puts.filter(p => p.strike < currentPrice && p.strike >= currentPrice * 0.90);
+            
+            return {
+                targetMonths: expiry.targetMonths,
+                expiration: expiry.expiration,
+                daysToExpiry: Math.ceil((new Date(expiry.expiration) - today) / (1000 * 60 * 60 * 24)),
+                atm: {
+                    call: atmCall,
+                    put: atmPut
+                },
+                nearMoney: {
+                    calls: calls.slice(0, 3), // Top 3 closest to ATM
+                    puts: puts.slice(0, 3)
+                },
+                otm: {
+                    calls: otmCalls.slice(0, 3),
+                    puts: otmPuts.slice(0, 3)
+                }
+            };
+        });
+        
+        return {
+            ticker,
+            underlyingPrice: currentPrice,
+            strategies: strategiesData,
+            fetchedAt: chain.fetchedAt
+        };
+        
+    } catch (error) {
+        logger.error(`Strategy options fetch error for ${ticker}:`, error.message);
+        throw error;
+    }
+}
+
+/**
  * Get ATM (At-The-Money) option for a specific expiry
  */
 function getATMOption(options, currentPrice, type = 'call') {
@@ -379,6 +471,7 @@ function calculateBearPutSpread(currentPrice, longPut, shortPut) {
 module.exports = {
     getOptionsChain,
     getNearMoneyOptions,
+    getOptionsForStrategyAnalysis,
     getATMOption,
     calculateStrategyMetrics
 };

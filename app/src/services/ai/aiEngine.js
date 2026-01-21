@@ -7,7 +7,7 @@ const { getNewsForTicker, getSentimentSignal } = require('../news/newsAnalyzer')
 const { fetchFearGreed } = require('../sentiment/fearGreedFetcher');
 const { fetchVIX } = require('../sentiment/vixFetcher');
 const { getHistoricalData, extractPriceArrays } = require('../market/dataFetcher');
-const { getNearMoneyOptions, getATMOption, calculateStrategyMetrics } = require('../options/optionsDataFetcher');
+const { getNearMoneyOptions, getOptionsForStrategyAnalysis, getATMOption, calculateStrategyMetrics } = require('../options/optionsDataFetcher');
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -42,7 +42,7 @@ async function makeAIDecision(ticker, companyName, tradingType = 'BOTH', options
             getFundamentals(ticker),
             getNewsForTicker(ticker, { limit: 20, lookbackDays: 7 }),
             getSentimentSignal(ticker, { limit: 20 }),
-            tradingType !== 'STOCK' ? getNearMoneyOptions(ticker, 3).catch(err => {
+            tradingType !== 'STOCK' ? getOptionsForStrategyAnalysis(ticker).catch(err => {
                 logger.warn(`Options data not available: ${err.message}`);
                 return null;
             }) : null
@@ -258,29 +258,47 @@ VIX: ${marketSentiment.vix.value?.toFixed(2) || 'N/A'} (${marketSentiment.vix.in
     if (optionsData && tradingType !== 'STOCK') {
         prompt += `
 ═══════════════════════════════════════════════════════════════
-OPTIONS DATA
+OPTIONS DATA (3, 6, 9 MONTH TIMEFRAMES)
 ═══════════════════════════════════════════════════════════════
 
 Underlying Price: $${optionsData.underlyingPrice.toFixed(2)}
 
-Available Expiries (Near-term):
+You have options data for THREE timeframes. Analyze each and recommend the BEST strategy:
 `;
 
-        optionsData.nearMoneyOptions.forEach((expiry, idx) => {
-            prompt += `\n${idx + 1}. ${new Date(expiry.expiration).toLocaleDateString()} (${expiry.daysToExpiry} days):\n`;
+        optionsData.strategies.forEach((strategy, idx) => {
+            prompt += `\n━━━ ${strategy.targetMonths}-MONTH OPTIONS ━━━\nExpiration: ${new Date(strategy.expiration).toLocaleDateString()} (${strategy.daysToExpiry} days)\n\n`;
             
             // ATM Call
-            const atmCall = expiry.calls[0];
+            const atmCall = strategy.atm.call;
             if (atmCall) {
-                prompt += `   ATM Call (${atmCall.strike}): Last=$${atmCall.lastPrice}, Bid=$${atmCall.bid}, Ask=$${atmCall.ask}, IV=${(atmCall.impliedVolatility * 100).toFixed(1)}%, OI=${atmCall.openInterest}\n`;
-                if (atmCall.delta) prompt += `   Greeks: Δ=${atmCall.delta.toFixed(3)}, Θ=${atmCall.theta?.toFixed(3) || 'N/A'}, Vega=${atmCall.vega?.toFixed(3) || 'N/A'}\n`;
+                prompt += `ATM CALL ($${atmCall.strike}):\n`;
+                prompt += `  Premium: $${atmCall.lastPrice?.toFixed(2) || 'N/A'} (Bid: $${atmCall.bid?.toFixed(2) || 'N/A'}, Ask: $${atmCall.ask?.toFixed(2) || 'N/A'})\n`;
+                prompt += `  IV: ${(atmCall.impliedVolatility * 100).toFixed(1)}% | Volume: ${atmCall.volume || 0} | OI: ${atmCall.openInterest || 0}\n`;
+                if (atmCall.delta) {
+                    prompt += `  Greeks: Δ=${atmCall.delta.toFixed(3)}, Θ=${atmCall.theta?.toFixed(3) || 'N/A'}, Γ=${atmCall.gamma?.toFixed(4) || 'N/A'}, Vega=${atmCall.vega?.toFixed(3) || 'N/A'}\n`;
+                }
             }
             
             // ATM Put
-            const atmPut = expiry.puts[0];
+            const atmPut = strategy.atm.put;
             if (atmPut) {
-                prompt += `   ATM Put (${atmPut.strike}): Last=$${atmPut.lastPrice}, Bid=$${atmPut.bid}, Ask=$${atmPut.ask}, IV=${(atmPut.impliedVolatility * 100).toFixed(1)}%, OI=${atmPut.openInterest}\n`;
-                if (atmPut.delta) prompt += `   Greeks: Δ=${atmPut.delta.toFixed(3)}, Θ=${atmPut.theta?.toFixed(3) || 'N/A'}, Vega=${atmPut.vega?.toFixed(3) || 'N/A'}\n`;
+                prompt += `\nATM PUT ($${atmPut.strike}):\n`;
+                prompt += `  Premium: $${atmPut.lastPrice?.toFixed(2) || 'N/A'} (Bid: $${atmPut.bid?.toFixed(2) || 'N/A'}, Ask: $${atmPut.ask?.toFixed(2) || 'N/A'})\n`;
+                prompt += `  IV: ${(atmPut.impliedVolatility * 100).toFixed(1)}% | Volume: ${atmPut.volume || 0} | OI: ${atmPut.openInterest || 0}\n`;
+                if (atmPut.delta) {
+                    prompt += `  Greeks: Δ=${atmPut.delta.toFixed(3)}, Θ=${atmPut.theta?.toFixed(3) || 'N/A'}, Γ=${atmPut.gamma?.toFixed(4) || 'N/A'}, Vega=${atmPut.vega?.toFixed(3) || 'N/A'}\n`;
+                }
+            }
+            
+            // OTM options for spreads
+            if (strategy.otm.calls.length > 0) {
+                const otmCall = strategy.otm.calls[0];
+                prompt += `\nOTM CALL for Spreads ($${otmCall.strike}): Premium=$${otmCall.lastPrice?.toFixed(2) || 'N/A'}, IV=${(otmCall.impliedVolatility * 100).toFixed(1)}%\n`;
+            }
+            if (strategy.otm.puts.length > 0) {
+                const otmPut = strategy.otm.puts[0];
+                prompt += `OTM PUT for Spreads ($${otmPut.strike}): Premium=$${otmPut.lastPrice?.toFixed(2) || 'N/A'}, IV=${(otmPut.impliedVolatility * 100).toFixed(1)}%\n`;
             }
         });
     }
@@ -302,7 +320,12 @@ ANALYSIS GUIDELINES:
    - 50-69%: Moderate confidence, some uncertainty
    - Below 50%: Weak signals, recommend HOLD or wait
 5. For stock trades: Consider realistic position sizing (not too aggressive)
-6. For options: Prefer defined-risk strategies, acknowledge theta decay
+6. For OPTIONS: You have 3, 6, and 9-month data. COMPARE ALL THREE TIMEFRAMES:
+   - Analyze theta decay impact for each timeframe
+   - Compare premium costs vs time value
+   - Consider IV levels across different expirations
+   - Recommend the BEST timeframe and strategy with clear reasoning
+   - Prefer defined-risk strategies (spreads over naked options)
 7. Always provide STOP LOSS levels - risk management is critical
 
 RISK ACKNOWLEDGMENT:
@@ -336,7 +359,8 @@ Provide your analysis in this EXACT JSON format:
         "stopLoss": <number>
       },
       
-      // For OPTIONS recommendations (if applicable)
+      // For OPTIONS recommendations - MUST include comparison of 3, 6, 9 month options
+      "optionsComparison": "<STRING: 2-3 sentences comparing 3-month vs 6-month vs 9-month options. Discuss theta decay, premium costs, and why you selected your recommended timeframe.>",
       "optionsTrade": {
         "strategy": "LONG_CALL" | "LONG_PUT" | "COVERED_CALL" | "PROTECTIVE_PUT" | "BULL_CALL_SPREAD" | "BEAR_PUT_SPREAD",
         "legs": [
@@ -447,11 +471,12 @@ function prepareDecision(data) {
         
         // Options trade details
         optionsStrategy: primaryRec.optionsTrade?.strategy || null,
+        optionsComparison: primaryRec.optionsComparison || null,
         optionsLegs: primaryRec.optionsTrade?.legs || null,
-        maxProfit: primaryRec.optionsTrade?.maxProfit || null,
-        maxLoss: primaryRec.optionsTrade?.maxLoss || null,
-        breakeven: primaryRec.optionsTrade?.breakeven || null,
-        collateralRequired: primaryRec.optionsTrade?.collateralRequired || null,
+        optionsMaxProfit: primaryRec.optionsTrade?.maxProfit || null,
+        optionsMaxLoss: primaryRec.optionsTrade?.maxLoss || null,
+        optionsBreakeven: primaryRec.optionsTrade?.breakeven || null,
+        optionsCollateralRequired: primaryRec.optionsTrade?.collateralRequired || null,
         
         // Analysis context
         marketContext: marketSentiment,
@@ -547,11 +572,12 @@ async function storeDecision(decision) {
                 takeProfit: decision.targetPrice, // Database uses takeProfit, not targetPrice
                 stopLoss: decision.stopLoss,
                 optionsStrategy: decision.optionsStrategy,
+                optionsComparison: decision.optionsComparison,
                 optionsLegs: decision.optionsLegs,
-                maxProfit: decision.maxProfit,
-                maxLoss: decision.maxLoss,
-                breakeven: decision.breakeven,
-                collateralRequired: decision.collateralRequired,
+                maxProfit: decision.optionsMaxProfit,
+                maxLoss: decision.optionsMaxLoss,
+                breakeven: decision.optionsBreakeven,
+                collateralRequired: decision.optionsCollateralRequired,
                 marketContext: decision.marketContext,
                 assetAnalysis: decision.assetAnalysis,
                 optionsData: decision.optionsData,

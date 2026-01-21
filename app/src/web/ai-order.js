@@ -390,6 +390,12 @@ async function runAIAnalysis() {
             aiData = data;
             
             console.log('AI Decision received:', aiData);
+            console.log('Options Strategy:', aiData.optionsStrategy);
+            console.log('Options Comparison:', aiData.optionsComparison);
+            console.log('Options Legs:', aiData.optionsLegs);
+            console.log('Options Strategy:', aiData.optionsStrategy);
+            console.log('Options Comparison:', aiData.optionsComparison);
+            console.log('Options Legs:', aiData.optionsLegs);
             
             // Display AI recommendation - accessible for color blindness
             const decisionText = aiData.decision ? aiData.decision.toUpperCase() : 'NO RECOMMENDATION';
@@ -496,6 +502,57 @@ async function runAIAnalysis() {
                     reasoning.innerHTML += `<li>${risk}</li>`;
                 });
                 reasoning.innerHTML += '</ul>';
+            }
+            
+            // Display options comparison if available (3, 6, 9 month analysis)
+            const optionsComparisonSection = document.getElementById('optionsComparisonSection');
+            if (aiData.optionsComparison || (aiData.optionsStrategy && aiData.optionsLegs)) {
+                optionsComparisonSection.style.display = 'block';
+                
+                // Show timeframe comparison
+                if (aiData.optionsComparison) {
+                    document.getElementById('optionsComparison').innerHTML = `
+                        <strong style="color: #0369a1;">💡 Timeframe Selection:</strong><br/>
+                        ${aiData.optionsComparison}
+                    `;
+                }
+                
+                // Show multi-leg strategy details
+                if (aiData.optionsStrategy && aiData.optionsLegs && aiData.optionsLegs.length > 0) {
+                    document.getElementById('multiLegStrategy').style.display = 'block';
+                    
+                    const legsContainer = document.getElementById('strategyLegs');
+                    legsContainer.innerHTML = '';
+                    
+                    aiData.optionsLegs.forEach((leg, idx) => {
+                        const legColor = leg.action === 'BUY' ? '#10b981' : '#ef4444';
+                        const legBg = leg.action === 'BUY' ? '#d1fae5' : '#fee2e2';
+                        
+                        const legHTML = `
+                            <div style="padding: 1rem; background: ${legBg}; border-left: 4px solid ${legColor}; border-radius: 0.5rem;">
+                                <div style="font-weight: 700; color: ${legColor}; margin-bottom: 0.5rem;">
+                                    Leg ${idx + 1}: ${leg.action} ${leg.contracts || 1}x ${leg.type}
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; font-size: 0.9rem;">
+                                    <div><span style="color: #64748b;">Strike:</span> <strong>$${leg.strike}</strong></div>
+                                    <div><span style="color: #64748b;">Expiry:</span> <strong>${new Date(leg.expiry).toLocaleDateString()}</strong></div>
+                                    <div><span style="color: #64748b;">Premium:</span> <strong>$${leg.premium?.toFixed(2) || 'Market'}</strong></div>
+                                </div>
+                            </div>
+                        `;
+                        legsContainer.innerHTML += legHTML;
+                    });
+                    
+                    // Show strategy metrics
+                    document.getElementById('strategyMaxProfit').textContent = 
+                        aiData.optionsMaxProfit ? `$${aiData.optionsMaxProfit.toFixed(2)}` : 'Unlimited';
+                    document.getElementById('strategyMaxLoss').textContent = 
+                        aiData.optionsMaxLoss ? `$${aiData.optionsMaxLoss.toFixed(2)}` : '-';
+                    document.getElementById('strategyBreakeven').textContent = 
+                        aiData.optionsBreakeven ? `$${aiData.optionsBreakeven.toFixed(2)}` : '-';
+                }
+            } else {
+                optionsComparisonSection.style.display = 'none';
             }
             
             document.getElementById('aiResults').style.display = 'block';
@@ -844,42 +901,63 @@ function openOptionsOrderModal() {
     const modal = document.getElementById('optionsOrderModal');
     
     // Check if AI recommended an options strategy
-    if (aiData && aiData.optionsTrade && aiData.optionsTrade.legs && aiData.optionsTrade.legs.length > 0) {
-        const strategy = aiData.optionsTrade;
-        const legs = strategy.legs;
+    if (aiData && aiData.optionsStrategy && aiData.optionsLegs && aiData.optionsLegs.length > 0) {
+        const strategyName = aiData.optionsStrategy;
+        const legs = aiData.optionsLegs;
         
         // Build strategy description for multi-leg strategies
         let strategyLegsHTML = '';
         legs.forEach((leg, idx) => {
-            const legType = `${leg.action} ${leg.contracts}x ${leg.type}`;
+            const legColor = leg.action === 'BUY' ? '#10b981' : '#f59e0b';
+            const legIcon = leg.action === 'BUY' ? '📈' : '📉';
+            const legType = `${leg.action} ${leg.contracts || 1}x ${leg.type}`;
+            const expiryDate = new Date(leg.expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            
             strategyLegsHTML += `
-                <div style="padding: 0.5rem; background: rgba(255,255,255,0.2); border-radius: 0.25rem; margin-top: 0.5rem;">
-                    <strong>Leg ${idx + 1}:</strong> ${legType} @ $${leg.strike} (${leg.expiry})
-                    ${leg.premium ? `- Premium: $${leg.premium.toFixed(2)}` : ''}
+                <div style="padding: 0.75rem; background: rgba(255,255,255,0.3); border-left: 4px solid ${legColor}; border-radius: 0.25rem; margin-top: 0.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: ${legColor};">${legIcon} Leg ${idx + 1}:</strong>
+                        <span style="font-size: 0.875rem; opacity: 0.9;">${expiryDate}</span>
+                    </div>
+                    <div style="margin-top: 0.25rem;">${legType} @ Strike $${leg.strike}</div>
+                    ${leg.premium ? `<div style="font-size: 0.875rem; opacity: 0.9;">Premium: $${leg.premium.toFixed(2)} per contract</div>` : ''}
                 </div>
             `;
         });
+        
+        // Add options comparison context if available
+        let comparisonHTML = '';
+        if (aiData.optionsComparison) {
+            comparisonHTML = `
+                <div style="background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; line-height: 1.6;">
+                    <div style="font-weight: 600; margin-bottom: 0.5rem;">📊 Timeframe Analysis (3, 6, 9 Months):</div>
+                    ${aiData.optionsComparison}
+                </div>
+            `;
+        }
         
         // Show AI recommendation banner
         let bannerHTML = `
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
                 <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">🤖 AI RECOMMENDED STRATEGY</div>
-                <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem;">${strategy.strategy.replace(/_/g, ' ')}</div>
+                <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem;">${strategyName.replace(/_/g, ' ')}</div>
+                
+                ${comparisonHTML}
                 
                 ${strategyLegsHTML}
                 
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; font-size: 0.9rem; margin-top: 1rem;">
                     <div>
                         <div style="opacity: 0.8;">Max Profit</div>
-                        <div style="font-weight: 700;">$${strategy.maxProfit?.toFixed(2) || 'Unlimited'}</div>
+                        <div style="font-weight: 700; color: #10b981;">${aiData.optionsMaxProfit ? '$' + aiData.optionsMaxProfit.toFixed(2) : 'Unlimited'}</div>
                     </div>
                     <div>
                         <div style="opacity: 0.8;">Max Loss</div>
-                        <div style="font-weight: 700;">$${strategy.maxLoss?.toFixed(2) || 'N/A'}</div>
+                        <div style="font-weight: 700; color: #ef4444;">${aiData.optionsMaxLoss ? '$' + aiData.optionsMaxLoss.toFixed(2) : 'N/A'}</div>
                     </div>
                     <div>
                         <div style="opacity: 0.8;">Breakeven</div>
-                        <div style="font-weight: 700;">$${strategy.breakeven?.toFixed(2) || 'N/A'}</div>
+                        <div style="font-weight: 700;">${aiData.optionsBreakeven ? '$' + aiData.optionsBreakeven.toFixed(2) : 'N/A'}</div>
                     </div>
                     <div>
                         <div style="opacity: 0.8;">Win Probability</div>
@@ -927,6 +1005,15 @@ function openOptionsOrderModal() {
             scalerDiv.className = 'strategy-scaler-group';
             scalerDiv.innerHTML = scalerHTML;
             bannerDiv.after(scalerDiv);
+            
+            // Store multi-leg strategy data
+            modal.dataset.multiLegStrategy = JSON.stringify({
+                strategy: strategyName,
+                legs: legs,
+                maxProfit: aiData.optionsMaxProfit,
+                maxLoss: aiData.optionsMaxLoss,
+                breakeven: aiData.optionsBreakeven
+            });
             
             // Update order value when scaler changes
             const scalerInput = document.getElementById('strategyScaler');

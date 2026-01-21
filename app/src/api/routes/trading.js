@@ -108,6 +108,70 @@ router.post('/execute', asyncHandler(async (req, res) => {
     res.json(result);
 }));
 
+// POST /api/trading/execute-multi-leg-option - Execute multi-leg options strategy
+router.post('/execute-multi-leg-option', asyncHandler(async (req, res) => {
+    const { symbol, strategy, legs, confidence } = req.body;
+    
+    if (!symbol || !strategy || !legs || !Array.isArray(legs) || legs.length === 0) {
+        throw new AppError('Missing required fields: symbol, strategy, legs (array)', 400);
+    }
+    
+    logger.info(`Multi-leg options strategy execution requested: ${strategy} for ${symbol} with ${legs.length} legs`);
+    
+    // Execute each leg as a separate order
+    const results = [];
+    const orderIds = [];
+    
+    for (let i = 0; i < legs.length; i++) {
+        const leg = legs[i];
+        
+        try {
+            const result = await orderService.executeTrade({
+                symbol,
+                action: leg.action.toUpperCase(),
+                quantity: parseInt(leg.contracts || 1),
+                orderType: 'MARKET',
+                limitPrice: leg.premium ? parseFloat(leg.premium) : null,
+                confidence: confidence || 80,
+                secType: 'OPT',
+                strike: parseFloat(leg.strike),
+                expiry: leg.expiry,
+                optionType: leg.type // CALL or PUT
+            });
+            
+            results.push(result);
+            if (result.success && result.order?.orderId) {
+                orderIds.push(result.order.orderId);
+            }
+            
+            logger.info(`Leg ${i + 1}/${legs.length} executed: ${leg.action} ${leg.contracts} ${leg.type} @ ${leg.strike}`);
+            
+        } catch (error) {
+            logger.error(`Error executing leg ${i + 1}:`, error);
+            // Continue with other legs even if one fails
+            results.push({
+                success: false,
+                error: error.message,
+                leg: i + 1
+            });
+        }
+    }
+    
+    // Check if all legs succeeded
+    const allSuccess = results.every(r => r.success);
+    
+    res.json({
+        success: allSuccess,
+        strategy,
+        legs: legs.length,
+        orderIds,
+        results,
+        message: allSuccess ? 
+            `All ${legs.length} legs executed successfully` : 
+            `Partial execution: ${results.filter(r => r.success).length}/${legs.length} legs succeeded`
+    });
+}));
+
 // POST /api/trading/execute/batch - Execute multiple trades
 router.post('/execute/batch', asyncHandler(async (req, res) => {
     const { trades } = req.body;
