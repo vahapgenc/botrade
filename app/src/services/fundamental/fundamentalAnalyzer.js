@@ -1,5 +1,16 @@
 const axios = require('axios');
-const yahooFinance = require('yahoo-finance2').default; // Using v2 wrapper
+let yahooFinance;
+try {
+    const YahooFinanceClass = require('yahoo-finance2').default;
+    try {
+        yahooFinance = new YahooFinanceClass();
+    } catch (e) {
+        yahooFinance = YahooFinanceClass;
+    }
+} catch (e) {
+    console.error("Failed to load yahoo-finance2", e);
+}
+
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
 const twsClient = require('../ibkr/twsClient');

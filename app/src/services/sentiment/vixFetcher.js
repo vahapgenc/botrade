@@ -1,5 +1,16 @@
 const axios = require('axios');
-const yahooFinance = require('yahoo-finance2').default;
+let yahooFinance;
+try {
+    const YahooFinanceClass = require('yahoo-finance2').default;
+    try {
+        yahooFinance = new YahooFinanceClass();
+    } catch (e) {
+        yahooFinance = YahooFinanceClass;
+    }
+} catch (e) {
+    console.error("Failed to load yahoo-finance2", e);
+}
+
 const csv = require('csv-parser');
 const { Readable } = require('stream');
 const config = require('../../../config/settings');

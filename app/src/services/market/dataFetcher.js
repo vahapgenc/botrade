@@ -1,5 +1,20 @@
 const axios = require('axios');
-const yahooFinance = require('yahoo-finance2').default; // Using v2 wrapper
+// const yahooFinance = require('yahoo-finance2').default; // Using v2 wrapper
+let yahooFinance;
+try {
+    const YahooFinanceClass = require('yahoo-finance2').default;
+    // Try to instantiate if it's a class/constructor
+    try {
+        yahooFinance = new YahooFinanceClass();
+        console.log("DEBUG: YahooFinance instantiated successfully");
+    } catch (e) {
+        console.log("DEBUG: YahooFinance instantiation failed (" + e.message + ") - Using as static object");
+        yahooFinance = YahooFinanceClass;
+    }
+} catch (e) {
+    console.error("Failed to load yahoo-finance2", e);
+}
+
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
 const twsClient = require('../ibkr/twsClient');
