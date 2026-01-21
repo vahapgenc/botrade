@@ -31,9 +31,9 @@ router.get('/input/:ticker', async (req, res) => {
         // Use Promise.all where possible to run independent checks in parallel
         // This dramatically reduces total wait time from sum(t) to max(t)
         
-        // 1 & 2. Market Data & Technicals (Technicals need 250 days, basic market needs 5)
-        // We can just fetch 250 days once and use it for both
-        const marketDataPromise = getHistoricalData(ticker, 'daily', 250)
+        // 1 & 2. Market Data & Technicals (Technicals need about 100 days for most indicators)
+        // Fetched 100 days instead of 250 as requested to optimize data load
+        const marketDataPromise = getHistoricalData(ticker, 'daily', 100)
             .catch(err => ({ error: err.message }));
 
         // 3. News Sentiment

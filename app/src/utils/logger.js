@@ -128,6 +128,13 @@ const logger = winston.createLogger({
     exitOnError: false
 });
 
+// Prevent logger from crashing the app on transport errors
+transports.forEach(transport => {
+    transport.on('error', (err) => {
+        console.error('Logger Transport Error (Handled):', err);
+    });
+});
+
 // Add helper methods
 logger.trade = (message, meta) => {
     logger.info(`[TRADE] ${message}`, { ...meta, type: 'TRADE' });
@@ -141,19 +148,49 @@ logger.market = (message, meta) => {
     logger.info(`[MARKET] ${message}`, { ...meta, type: 'MARKET' });
 };
 
+// --- ROBUST ERROR HANDLING ---
+// Instead of letting winston handle exceptions (which can cause crashes if winston fails),
+// we use native process handlers to ensure errors are always logged to console at minimum.
+
 // Handle uncaught exceptions
-logger.exceptions.handle(
-    new winston.transports.File({ 
-        filename: path.join('logs', 'exceptions.log') 
-    })
-);
+process.on('uncaughtException', (error) => {
+    console.error('🔥 UNCAUGHT EXCEPTION:', error);
+    try {
+        logger.error('Uncaught Exception:', error);
+    } catch (e) {
+        console.error('Failed to log uncaught exception to winston:', e);
+    }
+    // Do not exit immediately to allow potential data saving, 
+    // but in a real prod env you might want to restart.
+});
 
 // Handle unhandled promise rejections
-logger.rejections.handle(
-    new winston.transports.File({ 
-        filename: path.join('logs', 'rejections.log') 
-    })
-);
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🔥 UNHANDLED REJECTION:', reason);
+    try {
+        logger.error('Unhandled Rejection:', { reason });
+    } catch (e) {
+        console.error('Failed to log unhandled rejection to winston:', e);
+    }
+});
+
+/* 
+// Disabled winston native exception handling as it was causing "write after end" crashes on Node 22
+// logger.exceptions.handle(
+//     new winston.transports.File({ 
+//         filename: path.join('logs', 'exceptions.log') 
+//     })
+// );
+
+// logger.rejections.handle(
+//     new winston.transports.File({ 
+//         filename: path.join('logs', 'rejections.log') 
+//     })
+// );
+*/
+
+module.exports = logger;
+module.exports.logBuffer = logBuffer;
 
 // Method to get recent logs
 logger.getRecentLogs = () => {

@@ -53,7 +53,15 @@ async function loadData() {
         
     } catch (error) {
         console.error('Error loading AI data:', error);
-        showError('Failed to load AI data. Please check if the backend is running and try again.');
+        const msg = 'Failed to load AI data. Please check connection.';
+        console.warn(msg);
+        
+        // Show error in summary instead of alert/toast if you want to avoid popup
+        const banner = document.getElementById('summaryBanner');
+        banner.style.display = 'block';
+        banner.innerHTML = `<div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 1rem; border-radius: 8px;">
+            <strong>Error:</strong> ${error.message || msg}
+        </div>`;
     }
 }
 

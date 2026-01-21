@@ -11,8 +11,8 @@ const logger = require('../../utils/logger');
  * Calculate enhanced moving averages with Big.js precision
  */
 function calculateEnhancedMovingAverages(closes) {
-    if (closes.length < 200) {
-        throw new Error('Insufficient data: need at least 200 data points for SMA200');
+    if (closes.length < 20) {
+        throw new Error('Insufficient data: need at least 20 data points for basic MA');
     }
     
     logger.debug('Calculating enhanced moving averages with arbitrary precision...');
@@ -24,21 +24,20 @@ function calculateEnhancedMovingAverages(closes) {
     const ema9 = new EMA(9);
     const ema21 = new EMA(21);
     
-    // Feed data - use regular numbers for SMA (trading-signals has issues with Big.js for SMA)
-    // But still use Big.js for EMA for precision
+    // Feed data
     closes.forEach(close => {
-        sma20.update(close); // Use regular number
-        sma50.update(close); // Use regular number
-        sma200.update(close); // Use regular number
-        ema9.update(new Big(close)); // EMA works fine with Big.js
-        ema21.update(new Big(close)); // EMA works fine with Big.js
+        try { if (closes.length >= 20) sma20.update(close); } catch(e){}
+        try { if (closes.length >= 50) sma50.update(close); } catch(e){}
+        try { if (closes.length >= 200) sma200.update(close); } catch(e){}
+        
+        try { ema9.update(new Big(close)); } catch(e){}
+        try { ema21.update(new Big(close)); } catch(e){}
     });
     
     // Get current values
     const currentPrice = parseFloat(closes[closes.length - 1]);
     
     // Check if indicators are stable before getting results
-    // For SMA, getResult() returns a number directly now
     const lastSMA20 = sma20.isStable ? parseFloat(sma20.getResult()) : null;
     const lastSMA50 = sma50.isStable ? parseFloat(sma50.getResult()) : null;
     const lastSMA200 = sma200.isStable ? parseFloat(sma200.getResult()) : null;
@@ -49,25 +48,44 @@ function calculateEnhancedMovingAverages(closes) {
     let trend = 'MIXED';
     let trendStrength = 50;
     
-    if (lastSMA20 && lastSMA50 && lastSMA200) {
-        if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50 && lastSMA50 > lastSMA200) {
-            trend = 'STRONG_BULLISH';
-            trendStrength = 90;
-        } else if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50) {
-            trend = 'BULLISH';
-            trendStrength = 75;
-        } else if (currentPrice > lastSMA20) {
-            trend = 'SLIGHTLY_BULLISH';
-            trendStrength = 60;
-        } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50 && lastSMA50 < lastSMA200) {
-            trend = 'STRONG_BEARISH';
-            trendStrength = 10;
-        } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50) {
-            trend = 'BEARISH';
-            trendStrength = 25;
-        } else if (currentPrice < lastSMA20) {
-            trend = 'SLIGHTLY_BEARISH';
-            trendStrength = 40;
+    // Trend logic adapted for missing SMA200
+    if (lastSMA20 && lastSMA50) {
+        if (lastSMA200) {
+            // Full logic with SMA200
+            if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50 && lastSMA50 > lastSMA200) {
+                trend = 'STRONG_BULLISH';
+                trendStrength = 90;
+            } else if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50) {
+                trend = 'BULLISH';
+                trendStrength = 75;
+            } else if (currentPrice > lastSMA20) {
+                trend = 'SLIGHTLY_BULLISH';
+                trendStrength = 60;
+            } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50 && lastSMA50 < lastSMA200) {
+                trend = 'STRONG_BEARISH';
+                trendStrength = 10;
+            } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50) {
+                trend = 'BEARISH';
+                trendStrength = 25;
+            } else if (currentPrice < lastSMA20) {
+                trend = 'SLIGHTLY_BEARISH';
+                trendStrength = 40;
+            }
+        } else {
+             // Limited logic without SMA200
+            if (currentPrice > lastSMA20 && lastSMA20 > lastSMA50) {
+                trend = 'BULLISH';
+                trendStrength = 70;
+            } else if (currentPrice < lastSMA20 && lastSMA20 < lastSMA50) {
+                trend = 'BEARISH';
+                trendStrength = 30;
+            } else if (currentPrice > lastSMA50) {
+                trend = 'SLIGHTLY_BULLISH';
+                trendStrength = 60;
+            } else if (currentPrice < lastSMA50) {
+                trend = 'SLIGHTLY_BEARISH';
+                trendStrength = 40;
+            }
         }
     } else if (lastEMA9 && lastEMA21) {
         // Fallback to EMA if SMA not available

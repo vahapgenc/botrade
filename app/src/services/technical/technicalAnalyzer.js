@@ -12,11 +12,11 @@ async function analyzeTechnicals(priceData) {
     try {
         const { closes, opens, highs, lows, volumes } = priceData;
         
-        if (!closes || closes.length < 200) {
-            throw new Error('Insufficient data for technical analysis');
+        if (!closes || closes.length < 20) {
+            throw new Error('Insufficient data for technical analysis (minimum 20 data points requried)');
         }
         
-        logger.info('Performing enhanced technical analysis with trading-signals + Big.js...');
+        logger.info(`Performing enhanced technical analysis on ${closes.length} candles...`);
         
         // Try enhanced indicators first, fallback to standard if they fail
         let movingAverages, macd, bollinger, rsi;

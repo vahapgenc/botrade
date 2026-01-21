@@ -127,11 +127,29 @@ async function fetchStockInfo() {
             } else if (data && data.error) {
                 errorMsg = data.error;
             }
-            alert(`Failed to fetch stock data for ${symbol}.\nReason: ${errorMsg}`);
+            // Use inline error instead of alert
+            const errorDiv = document.createElement('div');
+            errorDiv.style.color = '#ff4444';
+            errorDiv.style.marginTop = '10px';
+            errorDiv.textContent = `Error: ${errorMsg}`;
+            const container = document.getElementById('step1');
+            const oldError = container.querySelector('.inline-error');
+            if (oldError) oldError.remove();
+            errorDiv.className = 'inline-error';
+            container.appendChild(errorDiv);
         }
     } catch (error) {
         console.error('Error fetching stock info:', error);
-        alert(`Error: ${error.message}`);
+         // Use inline error instead of alert
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = '#ff4444';
+        errorDiv.style.marginTop = '10px';
+        errorDiv.textContent = `Error: ${error.message}`;
+        const container = document.getElementById('step1');
+        const oldError = container.querySelector('.inline-error');
+        if (oldError) oldError.remove();
+        errorDiv.className = 'inline-error';
+        container.appendChild(errorDiv);
     } finally {
         document.getElementById('step1Loading').classList.remove('active');
     }
