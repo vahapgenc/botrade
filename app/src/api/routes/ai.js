@@ -95,17 +95,17 @@ router.get('/input/:ticker', async (req, res) => {
             try {
                 const priceData = extractPriceArrays(marketDataResult);
                 const technical = await analyzeTechnicals(priceData);
-                result.data.technical = formatTechnicalData(technical); // Refactored helper
-                result.status.technical = 'success';
+                result.data.technicals = formatTechnicalData(technical); // Refactored helper
+                result.status.technicals = 'success';
             } catch (err) {
-                 result.status.technical = 'error';
-                 result.data.technical = { error: err.message };
+                 result.status.technicals = 'error';
+                 result.data.technicals = { error: err.message };
             }
         } else {
              result.status.market = 'error';
              result.data.market = { error: marketDataResult.error || 'No data' };
-             result.status.technical = 'error';
-             result.data.technical = { error: 'Dependent on market data' };
+             result.status.technicals = 'error';
+             result.data.technicals = { error: 'Dependent on market data' };
         }
 
         // PROCESS 3: News
@@ -119,11 +119,11 @@ router.get('/input/:ticker', async (req, res) => {
 
         // PROCESS 4: Fundamentals
         if (fundamentalResult && !fundamentalResult.error) {
-             result.data.fundamental = formatFundamentalData(fundamentalResult); // Refactored helper
-             result.status.fundamental = 'success';
+             result.data.fundamentals = formatFundamentalData(fundamentalResult); // Refactored helper
+             result.status.fundamentals = 'success';
         } else {
-             result.status.fundamental = 'error';
-             result.data.fundamental = { error: fundamentalResult.error };
+             result.status.fundamentals = 'error';
+             result.data.fundamentals = { error: fundamentalResult.error };
         }
 
         // PROCESS 5: Market Sentiment
@@ -142,9 +142,9 @@ router.get('/input/:ticker', async (req, res) => {
         // Overall status summary
         result.status.overall = 
             ((result.status.market === 'success' || result.data.market) && 
-             (result.status.technical === 'success' || result.data.technical) && 
+             (result.status.technicals === 'success' || result.data.technicals) && 
              (result.status.news === 'success' || result.data.news) && 
-             (result.status.fundamental === 'success' || result.data.fundamental)) ? 'complete' : 'partial';
+             (result.status.fundamentals === 'success' || result.data.fundamentals)) ? 'complete' : 'partial';
         
         res.json(result);
         
@@ -204,25 +204,25 @@ function formatNewsData(news, signal) {
     return {
         source: news.source || 'Unknown',
         articlesCount: news.itemsReturned || 0,
-        sentiment: {
-            overall: news.sentiment?.overall || 'Neutral',
-            score: news.sentiment?.score || 0,
-            bullish: news.sentiment?.bullish || 0,
-            bearish: news.sentiment?.bearish || 0,
-            neutral: news.sentiment?.neutral || 0,
-            distribution: news.sentiment?.distribution || {}
-        },
-        tradingSignal: {
-            signal: signal?.signal || 'HOLD',
-            strength: signal?.strength || 'NEUTRAL',
-            recommendation: signal?.recommendation || 'Insufficient data'
-        },
-        recentHeadlines: (news.articles || []).slice(0, 3).map(a => ({
+        // Flatten sentiment for easier frontend access
+        sentiment: news.sentiment?.overall || 'Neutral',
+        sentimentScore: news.sentiment?.score || 0,
+        bullish: news.sentiment?.bullish || 0,
+        bearish: news.sentiment?.bearish || 0,
+        neutral: news.sentiment?.neutral || 0,
+        distribution: news.sentiment?.distribution || {},
+        // Trading signal
+        tradingSignal: signal?.signal || 'HOLD',
+        signalStrength: signal?.strength || 'NEUTRAL',
+        recommendation: signal?.recommendation || 'Insufficient data',
+        // Articles with flat structure
+        articles: (news.articles || []).map(a => ({
             title: a.title || 'No title',
-            sentiment: a.sentiment?.label || 'Neutral',
-            score: a.sentiment?.score || 0,
+            url: a.url || '#',
             source: a.source || 'Unknown',
-            date: a.timePublished || a.publishedAt || new Date().toISOString()
+            publishedAt: a.timePublished || a.publishedAt || new Date().toISOString(),
+            sentiment: a.sentiment?.label || 'Neutral',
+            sentimentScore: a.sentiment?.score || 0
         }))
     };
 }

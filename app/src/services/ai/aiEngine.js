@@ -13,7 +13,7 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4-turbo-preview';
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 /**
  * Make AI trading decision supporting both stocks and options
@@ -144,28 +144,50 @@ async function makeAIDecision(ticker, companyName, tradingType = 'BOTH', options
 }
 
 function getSystemPrompt() {
-    return `You are an expert stock and options trading analyst with 20+ years of experience. 
-You provide clear, actionable trading recommendations based on comprehensive data analysis.
+    return `You are a professional trading analyst providing data-driven investment analysis. Your role is to analyze market data objectively and present balanced recommendations.
 
-Your expertise includes:
-- Technical analysis (RSI, MACD, Bollinger Bands, trend analysis)
-- Fundamental analysis (CAN SLIM scoring, financial ratios)
-- Options strategies (calls, puts, spreads)
-- Risk management and position sizing
-- Market sentiment interpretation
+IMPORTANT PRINCIPLES:
+- Be honest about uncertainty - markets are inherently unpredictable
+- No recommendation is guaranteed - always acknowledge risks
+- Base decisions on DATA PROVIDED, not speculation
+- If data is insufficient or conflicting, recommend HOLD or MORE RESEARCH
+- Never promise returns or guarantee outcomes
+- Consider both upside potential AND downside risks equally
 
-Always provide:
-1. Clear decision with confidence level
-2. Specific entry/exit points
-3. Risk/reward analysis
-4. Key factors supporting the decision
-5. Potential risks to watch
+YOUR ANALYTICAL FRAMEWORK:
 
-For options strategies, consider:
-- Implied volatility levels
-- Time decay (Theta)
-- Delta for directional exposure
-- Risk-defined vs unlimited risk strategies`;
+Technical Analysis:
+- Trend direction, momentum indicators (RSI, MACD)
+- Support/resistance levels, moving averages
+- Volume patterns and price action
+
+Fundamental Analysis:
+- Company financial health (CAN SLIM methodology)
+- Valuation metrics (P/E, EPS growth, margins)
+- Competitive position and growth prospects
+
+Risk Assessment:
+- Market sentiment and broader economic conditions
+- Stock-specific risks and sector trends
+- Volatility and liquidity considerations
+
+Options Evaluation (when applicable):
+- Implied volatility vs historical volatility
+- Time decay (Theta) impact on position
+- Greeks analysis (Delta, Gamma, Vega)
+- Risk-defined strategies preferred over unlimited risk
+
+OUTPUT REQUIREMENTS:
+1. Honest confidence level (be conservative - most should be 60-80%)
+2. Clear reasoning based on the data provided
+3. Specific entry/exit points with stop-loss levels
+4. List of key supporting factors AND potential risks
+5. Acknowledge what you DON'T know or can't predict
+
+CRITICAL: You MUST respond with valid JSON only. No additional text before or after the JSON.
+The JSON structure is MANDATORY and must match exactly the format specified in the user prompt.
+
+Remember: You are providing ANALYSIS and SUGGESTIONS, not financial advice. The trader makes the final decision and bears all responsibility for their actions.`;
 }
 
 function buildPrompt(data) {
@@ -265,10 +287,38 @@ Available Expiries (Near-term):
 
     prompt += `
 ═══════════════════════════════════════════════════════════════
-REQUIRED OUTPUT
+YOUR TASK
 ═══════════════════════════════════════════════════════════════
 
-Based on this comprehensive analysis, provide recommendations in JSON format:
+Please analyze ${ticker} (${companyName}) objectively and provide an HONEST trading recommendation.
+
+ANALYSIS GUIDELINES:
+1. Synthesize ALL data above (technical, fundamental, sentiment, market conditions)
+2. Identify BOTH bullish AND bearish signals - be balanced
+3. If signals are mixed or data is insufficient, don't force a BUY/SELL - recommend HOLD
+4. Be realistic with confidence levels:
+   - 90-100%: Extremely rare, only with overwhelming evidence
+   - 70-89%: Strong conviction with clear data support
+   - 50-69%: Moderate confidence, some uncertainty
+   - Below 50%: Weak signals, recommend HOLD or wait
+5. For stock trades: Consider realistic position sizing (not too aggressive)
+6. For options: Prefer defined-risk strategies, acknowledge theta decay
+7. Always provide STOP LOSS levels - risk management is critical
+
+RISK ACKNOWLEDGMENT:
+- Clearly state what could go WRONG with this trade
+- Mention any data gaps or uncertainty in the analysis
+- Note external factors that could invalidate the thesis
+
+═══════════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT (STRICT)
+═══════════════════════════════════════════════════════════════
+
+⚠️ CRITICAL: Your response MUST be ONLY valid JSON. No text before or after.
+⚠️ MANDATORY: All fields below are REQUIRED. Use null if data is unavailable.
+⚠️ STRUCTURE: Follow this exact structure - do not add or remove fields.
+
+Provide your analysis in this EXACT JSON format:
 
 {
   "recommendations": [
@@ -278,7 +328,7 @@ Based on this comprehensive analysis, provide recommendations in JSON format:
       "confidence": <0-100>,
       "timeHorizon": "SHORT_TERM" | "MEDIUM_TERM" | "LONG_TERM",
       
-      // For STOCK
+      // For STOCK recommendations
       "stockTrade": {
         "quantity": <number>,
         "entryPrice": <number>,
@@ -286,7 +336,7 @@ Based on this comprehensive analysis, provide recommendations in JSON format:
         "stopLoss": <number>
       },
       
-      // For OPTIONS (if applicable)
+      // For OPTIONS recommendations (if applicable)
       "optionsTrade": {
         "strategy": "LONG_CALL" | "LONG_PUT" | "COVERED_CALL" | "PROTECTIVE_PUT" | "BULL_CALL_SPREAD" | "BEAR_PUT_SPREAD",
         "legs": [
@@ -305,24 +355,67 @@ Based on this comprehensive analysis, provide recommendations in JSON format:
         "collateralRequired": <number>
       },
       
-      "reasoning": "<detailed explanation>",
-      "keyFactors": ["<factor1>", "<factor2>", "<factor3>"],
-      "risks": ["<risk1>", "<risk2>", "<risk3>"],
-      "riskLevel": "LOW" | "MEDIUM" | "HIGH",
-      "probabilitySuccess": <0-100>
+      "reasoning": "<STRING: 2-4 sentences explaining WHY this trade makes sense based on the data provided. Reference specific indicators.>",
+      "keyFactors": [
+        "<STRING: Most important bullish/supportive factor>",
+        "<STRING: Second key factor>",
+        "<STRING: Third key factor>"
+      ],
+      "risks": [
+        "<STRING: Primary risk that could invalidate this trade>",
+        "<STRING: Secondary risk or concern>",
+        "<STRING: Third risk factor or uncertainty>"
+      ],
+      "riskLevel": "<STRING: Must be exactly 'LOW', 'MEDIUM', or 'HIGH'>",
+      "probabilitySuccess": <NUMBER: Integer 0-100, realistic estimate>
     }
   ],
-  "comparison": "<Compare stock vs options strategy - which is better and why>",
-  "finalRecommendation": "STOCK" | "OPTIONS"
+  "comparison": "<If both stock and options analyzed: Compare their risk/reward profiles. Which is better for this specific situation and why? Be honest about tradeoffs.>",
+  "finalRecommendation": "STOCK" | "OPTIONS" | "NEITHER"
 }
 
-IMPORTANT CONSIDERATIONS:
-1. Weight technical analysis heavily for SHORT_TERM trades
-2. Weight fundamental analysis heavily for LONG_TERM investments
-3. For options, consider IV rank (high IV = sell premium, low IV = buy premium)
-4. Consider Theta decay for short-dated options
-5. Options strategies should have defined risk when possible
-6. Compare stock vs options risk/reward ratio
+EXAMPLE RESPONSE (follow this structure exactly):
+{
+  "recommendations": [{
+    "tradingType": "STOCK",
+    "decision": "BUY",
+    "confidence": 72,
+    "timeHorizon": "MEDIUM_TERM",
+    "stockTrade": {
+      "quantity": 25,
+      "entryPrice": 230.45,
+      "targetPrice": 250.00,
+      "stopLoss": 220.00
+    },
+    "optionsTrade": null,
+    "reasoning": "Technical indicators show uptrend with RSI at 62 (not overbought). CAN SLIM score of 72/100 indicates solid fundamentals. Entry near current price with 4.5% stop provides 1:1.8 risk/reward.",
+    "keyFactors": [
+      "Strong uptrend with golden cross (SMA 50 > SMA 200)",
+      "CAN SLIM fundamentals score B+ (72/100)",
+      "RSI has room to run before overbought zone"
+    ],
+    "risks": [
+      "Mixed news sentiment suggests institutional uncertainty",
+      "Trading near upper Bollinger Band (potential resistance)",
+      "High P/E of 28.5 leaves no margin for earnings miss"
+    ],
+    "riskLevel": "MEDIUM",
+    "probabilitySuccess": 65
+  }],
+  "comparison": "Stock trade preferred over options due to lower complexity and theta decay concerns in current low-volatility environment.",
+  "finalRecommendation": "STOCK"
+}
+
+QUALITY CHECK BEFORE RESPONDING:
+✓ Is my response VALID JSON (use a JSON validator)?
+✓ Did I include ALL required fields (no missing fields)?
+✓ Is my confidence level realistic (not over-optimistic)?
+✓ Did I list REAL risks (not generic)?
+✓ Is my stop-loss tight enough to limit downside?
+✓ Would I personally take this trade with my own money?
+✓ Did I acknowledge any data limitations or uncertainties?
+
+⚠️ FINAL WARNING: Response must be ONLY JSON. No markdown, no explanations, no code blocks.
 `;
 
     return prompt;

@@ -28,9 +28,24 @@ document.addEventListener('DOMContentLoaded', () => {
 // Step Navigation
 function nextStep() {
     if (currentStep === 1) {
-        fetchStockInfo();
+        // Validate stock data is loaded
+        if (!stockData || !stockData.ticker) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.color = '#ff4444';
+            errorDiv.style.marginTop = '10px';
+            errorDiv.textContent = 'Please fetch stock data first';
+            const container = document.getElementById('step1');
+            const oldError = container.querySelector('.inline-error');
+            if (oldError) oldError.remove();
+            errorDiv.className = 'inline-error';
+            container.appendChild(errorDiv);
+            return;
+        }
+        // Go to step 2 and display analysis
+        goToStep(2);
+        displayAnalysis();
     } else if (currentStep === 2) {
-        goToStep(currentStep + 1);
+        goToStep(3);
         fetchNewsData();
     } else if (currentStep === 3 || currentStep === 4) {
         goToStep(currentStep + 1);
@@ -63,6 +78,11 @@ function goToStep(step) {
     });
     
     currentStep = step;
+    
+    // Special handling for Step 5 - populate AI summary
+    if (step === 5 && aiData && aiData.decision) {
+        populateStep5Summary();
+    }
     
     // Update buttons
     document.getElementById('prevBtn').disabled = (step === 1);
@@ -115,9 +135,8 @@ async function fetchStockInfo() {
             // Store full data for analysis
             analysisData = data.data;
             
-            // Move to next step and fetch analysis
-            goToStep(2);
-            displayAnalysis();
+            // Enable Next button to proceed
+            document.getElementById('nextBtn').disabled = false;
             
         } else {
             console.error('API Response Data:', data);
@@ -351,6 +370,7 @@ async function runAIAnalysis() {
             body: JSON.stringify({
                 ticker: symbol,
                 companyName: stockData.companyName || symbol, // Use symbol if company name is missing
+                tradingType: 'BOTH', // Support both stock and options analysis
                 portfolio: {
                     totalBudget: accountData.netLiquidation || 100000,
                     availableCash: accountData.cashBalance || 100000,
@@ -361,33 +381,37 @@ async function runAIAnalysis() {
         
         const data = await response.json();
         
-        if (data.success && data.decision) {
-            aiData = data.decision;
+        if (data && data.ticker) {
+            aiData = data;
             
             // Display AI recommendation
-            document.getElementById('aiDecision').textContent = `${aiData.action} ${symbol}`;
-            document.getElementById('aiConfidence').textContent = aiData.confidence;
+            document.getElementById('aiDecision').textContent = `${aiData.decision} ${symbol}`;
+            document.getElementById('aiConfidence').textContent = aiData.confidence + '%';
             document.getElementById('confidenceFill').style.width = `${aiData.confidence}%`;
             
             if (aiData.quantity) document.getElementById('aiQuantity').textContent = aiData.quantity;
-            if (aiData.entry_price) document.getElementById('aiEntry').textContent = aiData.entry_price.toFixed(2);
-            if (aiData.stop_loss) document.getElementById('aiStopLoss').textContent = aiData.stop_loss.toFixed(2);
-            if (aiData.take_profit) document.getElementById('aiTakeProfit').textContent = aiData.take_profit.toFixed(2);
+            if (aiData.suggestedPrice) document.getElementById('aiEntry').textContent = '$' + aiData.suggestedPrice.toFixed(2);
+            if (aiData.stopLoss) document.getElementById('aiStopLoss').textContent = '$' + aiData.stopLoss.toFixed(2);
+            if (aiData.targetPrice) document.getElementById('aiTakeProfit').textContent = '$' + aiData.targetPrice.toFixed(2);
             
             // Display reasoning
             const reasoning = document.getElementById('aiReasoning');
             reasoning.innerHTML = '';
             
-            if (aiData.primary_reasons && aiData.primary_reasons.length > 0) {
-                reasoning.innerHTML += '<strong>Primary Reasons:</strong><ul>';
-                aiData.primary_reasons.forEach(reason => {
+            if (aiData.reasoning) {
+                reasoning.innerHTML += `<p style="margin-bottom: 1rem;">${aiData.reasoning}</p>`;
+            }
+            
+            if (aiData.keyFactors && aiData.keyFactors.length > 0) {
+                reasoning.innerHTML += '<strong>Key Factors:</strong><ul style="margin-top: 0.5rem;">';
+                aiData.keyFactors.forEach(reason => {
                     reasoning.innerHTML += `<li>${reason}</li>`;
                 });
                 reasoning.innerHTML += '</ul>';
             }
             
             if (aiData.risks && aiData.risks.length > 0) {
-                reasoning.innerHTML += '<strong style="margin-top: 1rem; display: block;">Risks:</strong><ul>';
+                reasoning.innerHTML += '<strong style="margin-top: 1rem; display: block;">Risks:</strong><ul style="margin-top: 0.5rem;">';
                 aiData.risks.forEach(risk => {
                     reasoning.innerHTML += `<li>${risk}</li>`;
                 });
@@ -397,8 +421,8 @@ async function runAIAnalysis() {
             document.getElementById('aiResults').style.display = 'block';
             
             // Pre-fill order form with AI recommendations
-            if (aiData.action) {
-                document.getElementById('orderAction').value = aiData.action;
+            if (aiData.decision) {
+                document.getElementById('orderAction').value = aiData.decision;
             }
             if (aiData.quantity) {
                 document.getElementById('orderQuantity').value = aiData.quantity;
@@ -406,10 +430,35 @@ async function runAIAnalysis() {
             if (aiData.confidence) {
                 document.getElementById('confidence').value = aiData.confidence;
             }
+        } else {
+            // Show error inline
+            const errorDiv = document.createElement('div');
+            errorDiv.style.color = '#ff4444';
+            errorDiv.style.marginTop = '10px';
+            errorDiv.style.padding = '1rem';
+            errorDiv.style.background = '#fee';
+            errorDiv.style.borderRadius = '0.5rem';
+            errorDiv.textContent = `Error: ${data.error || 'No AI recommendation received'}`;
+            const container = document.getElementById('step4');
+            const oldError = container.querySelector('.inline-error');
+            if (oldError) oldError.remove();
+            errorDiv.className = 'inline-error';
+            container.appendChild(errorDiv);
         }
     } catch (error) {
         console.error('Error running AI analysis:', error);
-        alert('Error getting AI recommendation');
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = '#ff4444';
+        errorDiv.style.marginTop = '10px';
+        errorDiv.style.padding = '1rem';
+        errorDiv.style.background = '#fee';
+        errorDiv.style.borderRadius = '0.5rem';
+        errorDiv.textContent = `Error: ${error.message}`;
+        const container = document.getElementById('step4');
+        const oldError = container.querySelector('.inline-error');
+        if (oldError) oldError.remove();
+        errorDiv.className = 'inline-error';
+        container.appendChild(errorDiv);
     } finally {
         document.getElementById('step4Loading').classList.remove('active');
         document.getElementById('runAIBtn').disabled = false;
@@ -552,6 +601,19 @@ function toggleLimitPrice() {
     }
 }
 
+function populateStep5Summary() {
+    if (!aiData || !aiData.decision) return;
+    
+    // Populate AI summary card
+    document.getElementById('finalAiDecision').textContent = `${aiData.decision} ${stockData.ticker}`;
+    document.getElementById('finalAiQuantity').textContent = aiData.quantity || '-';
+    document.getElementById('finalAiEntry').textContent = aiData.suggestedPrice ? `$${aiData.suggestedPrice.toFixed(2)}` : '-';
+    document.getElementById('finalAiConfidence').textContent = aiData.confidence ? `${aiData.confidence}%` : '-';
+    
+    // Update order value display
+    updateOrderValue();
+}
+
 async function executeOrder() {
     const symbol = stockData.ticker;
     const action = document.getElementById('orderAction').value;
@@ -562,18 +624,42 @@ async function executeOrder() {
     
     // Validate
     if (!quantity || quantity < 1) {
-        alert('Please enter a valid quantity');
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = '#ff4444';
+        errorDiv.style.marginTop = '10px';
+        errorDiv.textContent = 'Please enter a valid quantity';
+        const container = document.getElementById('step5');
+        const oldError = container.querySelector('.inline-error');
+        if (oldError) oldError.remove();
+        errorDiv.className = 'inline-error';
+        container.appendChild(errorDiv);
         return;
     }
     
     const orderValue = quantity * stockData.price;
     if (orderValue > portfolioData.maxOrder) {
-        alert('Order value exceeds 25% portfolio limit');
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = '#ff4444';
+        errorDiv.style.marginTop = '10px';
+        errorDiv.textContent = 'Order value exceeds 25% portfolio limit';
+        const container = document.getElementById('step5');
+        const oldError = container.querySelector('.inline-error');
+        if (oldError) oldError.remove();
+        errorDiv.className = 'inline-error';
+        container.appendChild(errorDiv);
         return;
     }
     
     if (confidence < 70) {
-        alert('Confidence level must be at least 70%');
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = '#ff4444';
+        errorDiv.style.marginTop = '10px';
+        errorDiv.textContent = 'Confidence level must be at least 70%';
+        const container = document.getElementById('step5');
+        const oldError = container.querySelector('.inline-error');
+        if (oldError) oldError.remove();
+        errorDiv.className = 'inline-error';
+        container.appendChild(errorDiv);
         return;
     }
     
@@ -603,16 +689,49 @@ async function executeOrder() {
         const result = await response.json();
         
         if (result.success) {
-            alert(`✅ Order executed successfully!\nOrder ID: ${result.order.orderId}`);
-            window.location.href = '/';
+            // Show success modal
+            const successMsg = `✅ Order executed successfully!\n\nOrder ID: ${result.order.orderId}\nSymbol: ${symbol}\nAction: ${action}\nQuantity: ${quantity}\n\nWhat would you like to do next?`;
+            
+            if (confirm(successMsg + '\n\nClick OK to start a new analysis, or Cancel to view dashboard')) {
+                // Reset wizard for new analysis
+                window.location.reload();
+            } else {
+                // Go to dashboard
+                window.location.href = '/';
+            }
         } else {
-            alert(`❌ Order failed: ${result.error || 'Unknown error'}`);
+            const errorDiv = document.createElement('div');
+            errorDiv.style.color = '#ff4444';
+            errorDiv.style.marginTop = '10px';
+            errorDiv.style.padding = '1rem';
+            errorDiv.style.background = '#fee';
+            errorDiv.style.borderRadius = '0.5rem';
+            errorDiv.textContent = `❌ Order failed: ${result.error || 'Unknown error'}`;
+            const container = document.getElementById('step5');
+            const oldError = container.querySelector('.inline-error');
+            if (oldError) oldError.remove();
+            errorDiv.className = 'inline-error';
+            container.appendChild(errorDiv);
+            
             document.getElementById('executeBtn').disabled = false;
             document.getElementById('executeBtn').textContent = '✓ Execute Order';
         }
     } catch (error) {
         console.error('Error executing order:', error);
-        alert('Error executing order');
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = '#ff4444';
+        errorDiv.style.marginTop = '10px';
+        errorDiv.style.padding = '1rem';
+        errorDiv.style.background = '#fee';
+        errorDiv.style.borderRadius = '0.5rem';
+        errorDiv.textContent = `Error: ${error.message}`;
+        const container = document.getElementById('step5');
+        const oldError = container.querySelector('.inline-error');
+        if (oldError) oldError.remove();
+        errorDiv.className = 'inline-error';
+        container.appendChild(errorDiv);
+        
         document.getElementById('executeBtn').disabled = false;
         document.getElementById('executeBtn').textContent = '✓ Execute Order';
     }

@@ -396,7 +396,29 @@
 
                 <!-- Step 5: Execute Order -->
                 <div id="step5" class="step-panel">
-                    <h2 class="text-xl font-bold mb-4">Finalize Order</h2>
+                    <h2 class="text-xl font-bold mb-4">AI Recommendation Summary</h2>
+                    
+                    <!-- AI Recommendation Card -->
+                    <div id="aiSummaryCard" class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 2rem; padding: 2rem;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">AI RECOMMENDATION</div>
+                            <div id="finalAiDecision" style="font-size: 2.5rem; font-weight: 800; margin-bottom: 1rem;">-</div>
+                            <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                                <div>
+                                    <div style="opacity: 0.9; font-size: 0.875rem;">Quantity</div>
+                                    <div id="finalAiQuantity" style="font-size: 1.5rem; font-weight: 700;">-</div>
+                                </div>
+                                <div>
+                                    <div style="opacity: 0.9; font-size: 0.875rem;">Entry Price</div>
+                                    <div id="finalAiEntry" style="font-size: 1.5rem; font-weight: 700;">-</div>
+                                </div>
+                                <div>
+                                    <div style="opacity: 0.9; font-size: 0.875rem;">Confidence</div>
+                                    <div id="finalAiConfidence" style="font-size: 1.5rem; font-weight: 700;">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="card" style="background: #f8fafc; margin-bottom: 2rem;">
                         <div class="data-grid" style="margin-bottom: 0;">
@@ -414,6 +436,8 @@
                             </div>
                         </div>
                     </div>
+
+                    <h3 style="font-weight: 600; margin-bottom: 1rem; color: #374151;">Review & Modify Order (Optional)</h3>
 
                     <div class="form-group grid grid-cols-2 gap-4">
                         <div>
