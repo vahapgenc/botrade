@@ -557,16 +557,9 @@ async function runAIAnalysis() {
             
             document.getElementById('aiResults').style.display = 'block';
             
-            // Pre-fill order form with AI recommendations
-            if (aiData.decision) {
-                document.getElementById('orderAction').value = aiData.decision;
-            }
-            if (aiData.quantity) {
-                document.getElementById('orderQuantity').value = aiData.quantity;
-            }
-            if (aiData.confidence) {
-                document.getElementById('confidence').value = aiData.confidence;
-            }
+            // Show "New Analysis" button
+            document.getElementById('nextBtn').style.display = 'none';
+            document.getElementById('newAnalysisBtn').style.display = 'inline-block';
         } else {
             // Show error inline
             const errorDiv = document.createElement('div');
