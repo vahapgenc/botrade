@@ -150,8 +150,9 @@ async function getNewsForTicker(ticker, options = {}) {
         logger.info(`⚠️  Alpha Vantage not configured (ALPHA_VANTAGE_API_KEY missing)`);
     }
     
-    // Try 4: Google News RSS (last resort)
-    if (combinedArticles.length === 0) {
+    // Try 4: Google News RSS (Augment data if we need more coverage)
+    // We fetch from Google if we have fewer than limit/2 articles or if it's explicitly requested
+    if (combinedArticles.length < limit) {
         try {
             logger.info(`[4/4] Trying Google News RSS for ${ticker}...`);
             otherResult = await fetchFromGoogleNews(ticker);
@@ -219,7 +220,7 @@ async function getNewsForTicker(ticker, options = {}) {
     
     // Cache for 30 minutes (1800 seconds)
     await setCache(cacheKey, result, 1800);
-    logger.info(`News cached for ${ticker} from ${source}`);
+    logger.info(`News cached for ${ticker} from ${result.source}`);
     
     return result;
 }

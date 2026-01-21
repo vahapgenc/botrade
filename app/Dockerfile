@@ -1,5 +1,5 @@
-# Use Node.js LTS
-FROM node:20-alpine
+# Use Node.js LTS (Updated to 22 for yahoo-finance2 compatibility)
+FROM node:22-alpine
 
 # Install required system dependencies
 RUN apk add --no-cache \

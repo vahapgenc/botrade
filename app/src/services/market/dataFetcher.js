@@ -1,23 +1,24 @@
 const axios = require('axios');
-// const yahooFinance = require('yahoo-finance2').default; // Using v2 wrapper
-let yahooFinance;
-try {
-    const YahooFinanceClass = require('yahoo-finance2').default;
-    // Try to instantiate if it's a class/constructor
-    try {
-        yahooFinance = new YahooFinanceClass();
-        console.log("DEBUG: YahooFinance instantiated successfully");
-    } catch (e) {
-        console.log("DEBUG: YahooFinance instantiation failed (" + e.message + ") - Using as static object");
-        yahooFinance = YahooFinanceClass;
-    }
-} catch (e) {
-    console.error("Failed to load yahoo-finance2", e);
-}
-
 const logger = require('../../utils/logger');
 const { get: getCache, set: setCache } = require('../cache/cacheManager');
 const twsClient = require('../ibkr/twsClient');
+
+// Yahoo Finance Initialization
+let yahooFinance;
+try {
+    const YahooFinanceModule = require('yahoo-finance2').default;
+    // Instantiate if it is a class (v2/v3 behavior)
+    try {
+        yahooFinance = new YahooFinanceModule();
+        logger.info("YahooFinance initialized successfully.");
+    } catch (e) {
+        // Fallback for older versions or if it is already an instance
+        logger.warn("YahooFinance instantiation failed, using module directly: " + e.message);
+        yahooFinance = YahooFinanceModule;
+    }
+} catch (e) {
+    logger.error("Failed to load yahoo-finance2 module: " + e.message);
+}
 
 // Multiple data sources for fallback strategy
 const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
