@@ -241,7 +241,15 @@ function formatFundamentalData(fundamental) {
         },
         valuation: {
             marketCap: fundamental.valuation?.marketCap,
-            pe: fundamental.valuation?.pe
+            pe: fundamental.valuation?.pe,
+            eps: fundamental.quote?.eps
+        },
+        growth: {
+            epsGrowth: fundamental.growth?.earningsGrowthYoY ? fundamental.growth.earningsGrowthYoY / 100 : null,
+            revenueGrowth: fundamental.canSlim?.metrics?.priceChange ? fundamental.canSlim.metrics.priceChange / 100 : null
+        },
+        profitability: {
+            netMargin: fundamental.quote?.profitMargin || null
         },
         canSlimFactors: fundamental.canSlim?.grades
     };

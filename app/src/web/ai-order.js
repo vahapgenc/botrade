@@ -205,21 +205,18 @@ function displayAnalysis() {
         // Moving Averages
         // Check technicals.movingAverages first (structure from ai.js)
         const ma = technicals.movingAverages || {};
-        const sma50 = ma.sma50;
-        const sma200 = ma.sma200;
-            
-        if (sma50 && sma200) {
-            const signal = sma50 > sma200 ? 'BULLISH' : 'BEARISH';
-            const val = sma50 != null ? `$${sma50.toFixed(2)}` : 'N/A';
+        
+        if (ma.trend) {
+            // Use the trend field directly from backend
+            const trendValue = ma.trendStrength ? `${ma.trend} (${ma.trendStrength}%)` : ma.trend;
+            indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', trendValue, getSignalClass(ma.trend));
+        } else if (ma.sma50 && ma.sma200) {
+            // Fallback: calculate from SMA values
+            const signal = ma.sma50 > ma.sma200 ? 'BULLISH' : 'BEARISH';
+            const val = ma.sma50 != null ? `$${ma.sma50.toFixed(2)}` : 'N/A';
             indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', `SMA50: ${val}`, getSignalClass(signal));
         } else {
-             // Fallback for old structure or missing data
-             if (technicals.sma_50 && technicals.sma_200) {
-                const signal = technicals.sma_50.value > technicals.sma_200.value ? 'BULLISH' : 'BEARISH';
-                indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', `SMA50: $${technicals.sma_50.value.toFixed(2)}`, getSignalClass(signal));
-             } else {
-                indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', 'N/A', 'signal-neutral');
-             }
+            indicatorsGrid.innerHTML += createIndicatorCard('MA Trend', 'N/A', 'signal-neutral');
         }
         
         // Bollinger Bands
@@ -236,14 +233,27 @@ function displayAnalysis() {
     // Display Fundamentals
     if (analysisData.fundamentals) {
         const fund = analysisData.fundamentals;
+        const val = fund.valuation || {};
+        const growth = fund.growth || {};
+        const profitability = fund.profitability || {};
+        const canSlim = fund.canSlimFactors || {};
+        
+        // Calculate CAN SLIM score from letter grades
+        let canSlimScore = 'N/A';
+        if (Object.keys(canSlim).length > 0) {
+            const gradeValues = { 'A+': 100, 'A': 90, 'B+': 85, 'B': 80, 'C+': 75, 'C': 70, 'D': 60, 'F': 50 };
+            const scores = Object.values(canSlim).map(grade => gradeValues[grade] || 0);
+            const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+            canSlimScore = avgScore.toFixed(0) + '/100';
+        }
         
         fundamentalsGrid.innerHTML = `
-            <div class="info-item"><span class="info-label">P/E Ratio</span><span class="info-value">${fund.pe != null ? fund.pe.toFixed(2) : 'N/A'}</span></div>
-            <div class="info-item"><span class="info-label">EPS</span><span class="info-value">${fund.eps != null ? '$' + fund.eps.toFixed(2) : 'N/A'}</span></div>
-            <div class="info-item"><span class="info-label">EPS Growth</span><span class="info-value">${fund.epsGrowth != null ? (fund.epsGrowth * 100).toFixed(2) + '%' : 'N/A'}</span></div>
-            <div class="info-item"><span class="info-label">Revenue Growth</span><span class="info-value">${fund.revenueGrowth != null ? (fund.revenueGrowth * 100).toFixed(2) + '%' : 'N/A'}</span></div>
-            <div class="info-item"><span class="info-label">Net Margin</span><span class="info-value">${fund.netMargin != null ? (fund.netMargin * 100).toFixed(2) + '%' : 'N/A'}</span></div>
-            <div class="info-item"><span class="info-label">CAN SLIM Score</span><span class="info-value">${fund.canSlimScore != null ? fund.canSlimScore + '/100' : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">P/E Ratio</span><span class="info-value">${val.pe != null ? val.pe.toFixed(2) : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">EPS</span><span class="info-value">${val.eps != null ? '$' + val.eps.toFixed(2) : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">EPS Growth</span><span class="info-value">${growth.epsGrowth != null ? (growth.epsGrowth * 100).toFixed(2) + '%' : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">Revenue Growth</span><span class="info-value">${growth.revenueGrowth != null ? (growth.revenueGrowth * 100).toFixed(2) + '%' : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">Net Margin</span><span class="info-value">${profitability.netMargin != null ? (profitability.netMargin * 100).toFixed(2) + '%' : 'N/A'}</span></div>
+            <div class="info-item"><span class="info-label">CAN SLIM Score</span><span class="info-value">${canSlimScore}</span></div>
         `;
     } else {
         fundamentalsGrid.innerHTML = '<div class="info-item">No fundamental analysis available</div>';
